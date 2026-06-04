@@ -86,6 +86,13 @@ function Lobby({
     setRoster((r) => [...r, { name: next.name, color: next.hex }]);
   };
   const removePlayer = (i: number) => setRoster((r) => r.filter((_, j) => j !== i));
+  const movePlayer = (i: number, dir: -1 | 1) => setRoster((r) => {
+    const j = i + dir;
+    if (j < 0 || j >= r.length) return r;
+    const next = [...r];
+    [next[i], next[j]] = [next[j], next[i]];
+    return next;
+  });
 
   async function create() {
     setErr(null);
@@ -112,9 +119,10 @@ function Lobby({
       <div className="panel create">
         <h3>New game</h3>
         <div className="roster">
-          <div className="row-label">Players</div>
+          <div className="row-label">Players (turn order)</div>
           {roster.map((slot, i) => (
             <div key={i} className="roster-row">
+              <span className="roster-order">{i + 1}</span>
               <span className="dot" style={{ background: slot.color }} />
               <input
                 className="roster-name"
@@ -137,6 +145,10 @@ function Lobby({
                     />
                   );
                 })}
+              </div>
+              <div className="order-btns">
+                <button type="button" className="order-btn" disabled={i === 0} onClick={() => movePlayer(i, -1)}>↑</button>
+                <button type="button" className="order-btn" disabled={i === roster.length - 1} onClick={() => movePlayer(i, 1)}>↓</button>
               </div>
               {roster.length > 2 && (
                 <button type="button" className="del" title="Remove player" onClick={() => removePlayer(i)}>✕</button>
