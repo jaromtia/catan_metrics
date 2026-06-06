@@ -18,3 +18,7 @@ web/vite.config.d.ts
 
 # Local notes
 thoughts/
+
+# Local tools (not tracked in repo)
+Understand-Anything/
+.cursor/
