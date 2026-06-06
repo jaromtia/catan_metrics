@@ -106,6 +106,33 @@ cd web && npm install && npm run dev
 Open the printed Vite URL, create a game, and place pieces by dragging from the
 palette onto the board.
 
+## Run with Docker
+
+The whole stack is containerized: a Python/FastAPI **api** service and an nginx
+**web** service that serves the built React app and reverse-proxies `/api`
+(REST + WebSocket) to the api. The only thing that needs persisting — the
+append-only SQLite event log — lives on a named volume, so games survive
+restarts.
+
+```bash
+docker compose up --build
+```
+
+Then open <http://localhost:8080> for the web UI. The API is also exposed
+directly on <http://localhost:8000> for tooling/debugging.
+
+```bash
+docker compose down       # stop (keeps the catan-data volume)
+docker compose down -v    # stop and delete stored games
+```
+
+Files:
+
+- `Dockerfile` — backend image (uv-managed venv, runs `catan serve`).
+- `web/Dockerfile` — multi-stage Vite build served by nginx.
+- `web/nginx.conf` — static hosting + `/api` proxy with WebSocket upgrades.
+- `docker-compose.yml` — wires the two services, ports, and the data volume.
+
 ## Inspecting a game
 
 ```bash

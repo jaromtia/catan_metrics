@@ -15,7 +15,7 @@ from .board import Board
 from .constants import (
     BANK_RESOURCE_COUNT,
     CITIES_PER_PLAYER,
-    DEV_CARD_COUNTS,
+    DEV_DECK_SIZE,
     LARGEST_ARMY_VP,
     LONGEST_ROAD_VP,
     ROADS_PER_PLAYER,
@@ -41,6 +41,10 @@ def _empty_resources() -> dict[Resource, int]:
 class PlayerState:
     pid: PlayerId
     resources: dict[Resource, int] = field(default_factory=_empty_resources)
+    # Cards drawn but not yet played/revealed. Their types are unknown to the
+    # recorder, so they are tracked as a single count rather than per type.
+    hidden_dev: int = 0
+    # Known unplayed cards: only Victory Point cards land here, once revealed.
     dev_cards: dict[DevCard, int] = field(
         default_factory=lambda: {c: 0 for c in DevCard}
     )
@@ -57,6 +61,7 @@ class PlayerState:
         return PlayerState(
             pid=self.pid,
             resources=dict(self.resources),
+            hidden_dev=self.hidden_dev,
             dev_cards=dict(self.dev_cards),
             dev_cards_played=dict(self.dev_cards_played),
             knights_played=self.knights_played,
@@ -69,6 +74,11 @@ class PlayerState:
     @property
     def hand_size(self) -> int:
         return sum(self.resources.values())
+
+    @property
+    def dev_cards_in_hand(self) -> int:
+        """Unplayed development cards held: hidden draws + revealed VP cards."""
+        return self.hidden_dev + sum(self.dev_cards.values())
 
     @property
     def settlements_left(self) -> int:
@@ -87,10 +97,6 @@ def _full_bank() -> dict[Resource, int]:
     return {r: BANK_RESOURCE_COUNT for r in Resource}
 
 
-def _full_dev_deck() -> dict[DevCard, int]:
-    return dict(DEV_CARD_COUNTS)
-
-
 @dataclass
 class GameState:
     board: Board
@@ -102,7 +108,7 @@ class GameState:
     dice: tuple[int, int] | None = None
     has_rolled: bool = False
     bank: dict[Resource, int] = field(default_factory=_full_bank)
-    dev_deck: dict[DevCard, int] = field(default_factory=_full_dev_deck)
+    dev_deck_size: int = DEV_DECK_SIZE   # cards remaining in the deck (type unknown)
     robber: tuple[int, int] | None = None
     longest_road_holder: PlayerId | None = None
     largest_army_holder: PlayerId | None = None
@@ -112,9 +118,7 @@ class GameState:
     pending_discards: dict[PlayerId, int] = field(default_factory=dict)
     robber_pending: bool = False
     dev_played_this_turn: bool = False
-    dev_bought_this_turn: dict[DevCard, int] = field(
-        default_factory=lambda: {c: 0 for c in DevCard}
-    )
+    dev_bought_this_turn: int = 0   # cards drawn this turn (cannot be played yet)
 
     @classmethod
     def new(cls, board: Board, player_order: list[PlayerId]) -> GameState:
@@ -136,7 +140,7 @@ class GameState:
             dice=self.dice,
             has_rolled=self.has_rolled,
             bank=dict(self.bank),
-            dev_deck=dict(self.dev_deck),
+            dev_deck_size=self.dev_deck_size,
             robber=self.robber,
             longest_road_holder=self.longest_road_holder,
             largest_army_holder=self.largest_army_holder,
@@ -144,7 +148,7 @@ class GameState:
             pending_discards=dict(self.pending_discards),
             robber_pending=self.robber_pending,
             dev_played_this_turn=self.dev_played_this_turn,
-            dev_bought_this_turn=dict(self.dev_bought_this_turn),
+            dev_bought_this_turn=self.dev_bought_this_turn,
         )
 
     @property

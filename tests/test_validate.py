@@ -2,7 +2,7 @@
 
 from catan.domain import commands as cmd
 from catan.domain.board import standard_board
-from catan.domain.constants import DevCard, Resource
+from catan.domain.constants import Resource
 from catan.domain.state import GameState, Phase
 from catan.engine.validate import execute, validate
 
@@ -152,14 +152,22 @@ def test_build_city_must_upgrade_own_settlement():
 
 def test_buy_dev_card_needs_resources():
     state = play_state()
-    assert not validate(state, cmd.BuyDevCard(player="red", card=DevCard.KNIGHT)).ok
+    assert not validate(state, cmd.BuyDevCard(player="red")).ok
     give(state, "red", ore=1, wool=1, grain=1)
-    assert validate(state, cmd.BuyDevCard(player="red", card=DevCard.KNIGHT)).ok
+    assert validate(state, cmd.BuyDevCard(player="red")).ok
+
+
+def test_buy_dev_card_blocked_when_deck_empty():
+    state = play_state()
+    give(state, "red", ore=1, wool=1, grain=1)
+    state.dev_deck_size = 0
+    res = validate(state, cmd.BuyDevCard(player="red"))
+    assert not res.ok and any("deck is empty" in e for e in res.errors)
 
 
 def test_one_dev_card_per_turn():
     state = play_state()
-    state.players["red"].dev_cards[DevCard.KNIGHT] = 2
+    state.players["red"].hidden_dev = 2
     target = next(h for h in state.board.numbers if h != state.robber)
     state, _ = execute(state, cmd.PlayKnight(player="red", hex=target))
     # Robber now sits on target; pick a different hex for the second knight.
@@ -170,11 +178,27 @@ def test_one_dev_card_per_turn():
 
 def test_cannot_play_dev_card_bought_this_turn():
     state = play_state()
-    state.players["red"].dev_cards[DevCard.KNIGHT] = 1
-    state.dev_bought_this_turn[DevCard.KNIGHT] = 1
+    state.players["red"].hidden_dev = 1
+    state.dev_bought_this_turn = 1
     target = next(h for h in state.board.numbers if h != state.robber)
     res = validate(state, cmd.PlayKnight(player="red", hex=target))
     assert not res.ok and any("no playable" in e for e in res.errors)
+
+
+def test_reveal_vp_requires_a_hidden_card():
+    state = play_state()
+    res = validate(state, cmd.RevealVictoryPoint(player="red"))
+    assert not res.ok and any("no hidden" in e for e in res.errors)
+    state.players["red"].hidden_dev = 1
+    assert validate(state, cmd.RevealVictoryPoint(player="red")).ok
+
+
+def test_reveal_vp_allowed_the_turn_it_was_bought():
+    state = play_state()
+    state.players["red"].hidden_dev = 1
+    state.dev_bought_this_turn = 1
+    # Unlike playing a card, a VP card can be revealed the same turn it is drawn.
+    assert validate(state, cmd.RevealVictoryPoint(player="red")).ok
 
 
 # --- the seven -------------------------------------------------------------

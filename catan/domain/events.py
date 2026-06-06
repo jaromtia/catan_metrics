@@ -17,7 +17,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from .board import Board
-from .constants import DevCard, Resource
+from .constants import Resource
 
 PlayerId = str
 Coord = tuple[int, int]
@@ -125,8 +125,8 @@ class CityBuilt:
 
 @dataclass(frozen=True)
 class DevCardBought:
+    """A development card was drawn. The type is hidden until played/revealed."""
     player: PlayerId
-    card: DevCard
 
 
 @dataclass(frozen=True)

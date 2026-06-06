@@ -84,7 +84,7 @@ def test_trades_and_dev_counts():
                          gave={Resource.WOOL: 1}, received={Resource.ORE: 2}),
         ev.MaritimeTrade(player="red", gave={Resource.BRICK: 4},
                          received={Resource.GRAIN: 1}, ratio=4),
-        ev.DevCardBought(player="red", card=DevCard.KNIGHT),
+        ev.DevCardBought(player="red"),
         ev.MonopolyPlayed(player="red", resource=Resource.WOOL),
     ]
     m = compute_metrics(events)
@@ -97,7 +97,7 @@ def test_trades_and_dev_counts():
     assert red.trade_net[Resource.BRICK] == -4
     assert blue.trade_net[Resource.WOOL] == 1
     assert blue.trade_net[Resource.ORE] == -2
-    assert red.dev_bought[DevCard.KNIGHT] == 1
+    assert red.dev_bought == 1
     assert red.dev_played[DevCard.MONOPOLY] == 1
 
 

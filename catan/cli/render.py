@@ -5,7 +5,6 @@ from __future__ import annotations
 from ..domain.constants import (
     PIPS,
     TERRAIN_RESOURCE,
-    DevCard,
     Resource,
     Terrain,
 )
@@ -81,7 +80,7 @@ def render_state(state: GameState) -> str:
         p = state.players[pid]
         mark = "*" if pid == state.current_player else " "
         res = " ".join(f"{p.resources[r]:>3}" for r in _RES_ABBR)
-        dev = sum(p.dev_cards.values())
+        dev = p.dev_cards_in_hand
         lines.append(
             f"{mark}{pid:<7} {state.victory_points(pid):>3} {p.hand_size:>4}  {res}  "
             f"{len(p.settlements):>2} {len(p.cities):>2} {len(p.roads):>2} "
@@ -89,7 +88,7 @@ def render_state(state: GameState) -> str:
         )
 
     bank = " ".join(f"{_RES_ABBR[r]}:{state.bank[r]}" for r in _RES_ABBR)
-    lines.append(f"bank   {bank}   dev_deck:{sum(state.dev_deck.values())}")
+    lines.append(f"bank   {bank}   dev_deck:{state.dev_deck_size}")
     return "\n".join(lines)
 
 
@@ -123,7 +122,7 @@ def render_metrics(g: GameMetrics) -> str:
             f"    robber: knights={pm.knights_played} steals_made={pm.steals_made} "
             f"stolen_from_me={pm.cards_stolen_from_me} discarded={pm.cards_discarded}"
         )
-        dev_b = sum(pm.dev_bought.values())
+        dev_b = pm.dev_bought
         dev_p = sum(pm.dev_played.values())
         builds = ", ".join(f"{kind}@t{turn}" for _, turn, kind in pm.builds) or "(none)"
         lines.append(f"    dev: bought={dev_b} played={dev_p}    builds: {builds}")

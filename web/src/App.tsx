@@ -325,7 +325,8 @@ function GameView({ gameId, onExit }: { gameId: string; onExit: () => void }) {
   const effActor = guided ? (step.player ?? expected ?? current) : (actor ?? expected ?? current);
   const allowedPieces = guided ? step.pieces : undefined;
   const hasDiscards = Object.keys(state.pending_discards).length > 0;
-  const showPalette = live && (!guided || (allowedPieces?.length ?? 0) > 0);
+  const showPalette = live && !robberTarget && (!guided || (allowedPieces?.length ?? 0) > 0);
+  const bannerColor = playerColor(step.player ?? current, state.player_order);
 
   const startRoadBuilding = () => {
     setRbEdges([]);
@@ -421,7 +422,10 @@ function GameView({ gameId, onExit }: { gameId: string; onExit: () => void }) {
       <div className="layout">
         <div className="left">
           {guided ? (
-            <div className={`panel guide-banner ${step.key}`}>
+            <div
+              className={`panel guide-banner ${step.key}`}
+              style={{ "--player-color": bannerColor } as React.CSSProperties}
+            >
               <div className="guide-title">{step.title}</div>
               <div className="guide-hint">{step.hint}</div>
             </div>
@@ -445,9 +449,6 @@ function GameView({ gameId, onExit }: { gameId: string; onExit: () => void }) {
             </div>
           )}
           {live && hasDiscards && <DiscardPanel state={state} apply={applyCommand} />}
-          {showPalette && (
-            <Palette tool={tool} setTool={setTool} setDragKind={setDragKind} disabled={!live} allowed={allowedPieces} />
-          )}
           <div className="board-wrap">
             <div className="board-toggles">
               <label><input type="checkbox" checked={showResIcons} onChange={(e) => setShowResIcons(e.target.checked)} /> resources</label>
@@ -478,17 +479,6 @@ function GameView({ gameId, onExit }: { gameId: string; onExit: () => void }) {
               <button className="link" onClick={() => { setRbEdges(null); setTool(null); }}>Cancel</button>
             </div>
           )}
-          {live && robberTarget && (
-            <RobberPanel
-              state={state}
-              layout={layout}
-              target={robberTarget}
-              mover={mover}
-              mode={robberMode}
-              onConfirm={confirmRobber}
-              onCancel={() => setRobberTarget(null)}
-            />
-          )}
           <div className="panel scrubber">
             <input
               type="range" min={0} max={maxSeq} value={viewSeq ?? maxSeq}
@@ -503,7 +493,25 @@ function GameView({ gameId, onExit }: { gameId: string; onExit: () => void }) {
         </div>
         <div className="right">
           <Players state={state} />
-          {guided ? (
+          {showPalette && (
+            <Palette tool={tool} setTool={setTool} setDragKind={setDragKind} disabled={!live} allowed={allowedPieces} />
+          )}
+          {live && robberTarget ? (
+            <RobberPanel
+              state={state}
+              layout={layout}
+              target={robberTarget}
+              mover={mover}
+              mode={robberMode}
+              onConfirm={confirmRobber}
+              onCancel={() => setRobberTarget(null)}
+            />
+          ) : live && (state.robber_pending || tool === "robber") ? (
+            <div className="panel robber-hint">
+              <h3>{state.robber_pending ? "Move robber (rolled 7)" : "Play knight"}</h3>
+              <p>Tap a hex on the board to place the robber.</p>
+            </div>
+          ) : guided ? (
             <>
               {step.key === "roll" && <ActionsPanel state={state} apply={applyCommand} disabled={!live} variant="roll" player={current} enforce />}
               {step.key === "build" && <ActionsPanel state={state} apply={applyCommand} disabled={!live} variant="actions" player={current} enforce onRoadBuilding={startRoadBuilding} />}
@@ -515,10 +523,11 @@ function GameView({ gameId, onExit }: { gameId: string; onExit: () => void }) {
               <CommandBar disabled={!live} apply={applyText} />
             </>
           )}
-          {metrics && <Metrics m={metrics} />}
           <EventLog events={events} />
         </div>
       </div>
+
+      {metrics && <Metrics m={metrics} />}
     </div>
   );
 }

@@ -3,6 +3,7 @@ export type ResourceMap = Record<string, number>;
 
 export interface PlayerStateDTO {
   resources: ResourceMap;
+  hidden_dev: number;
   dev_cards: Record<string, number>;
   dev_cards_played: Record<string, number>;
   knights_played: number;
@@ -32,7 +33,7 @@ export interface GameStateDTO {
   dice: number[] | null;
   has_rolled: boolean;
   bank: ResourceMap;
-  dev_deck: Record<string, number>;
+  dev_deck_size: number;
   robber: number[] | null;
   longest_road_holder: string | null;
   largest_army_holder: string | null;
@@ -40,7 +41,7 @@ export interface GameStateDTO {
   pending_discards: Record<string, number>;
   robber_pending: boolean;
   dev_played_this_turn: boolean;
-  dev_bought_this_turn: Record<string, number>;
+  dev_bought_this_turn: number;
   mode?: GameMode;
 }
 
@@ -97,7 +98,8 @@ export interface PlayerMetricsDTO {
   cards_stolen_from_me: number;
   robber_blocked: number;
   knights_played: number;
-  dev_bought: Record<string, number>;
+  dev_bought: number;
+  vp_revealed: number;
   dev_played: Record<string, number>;
   trades_domestic: number;
   trades_maritime: number;

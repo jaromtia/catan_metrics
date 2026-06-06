@@ -6,7 +6,7 @@ from catan.domain import events as ev
 from catan.domain.board import standard_board
 from catan.domain.constants import (
     BANK_RESOURCE_COUNT,
-    DEV_CARD_COUNTS,
+    DEV_DECK_SIZE,
     Resource,
     DevCard,
     Terrain,
@@ -41,10 +41,12 @@ def resource_total(state, res):
 def assert_conserved(state):
     for res in Resource:
         assert resource_total(state, res) == BANK_RESOURCE_COUNT, res
-    for card in DevCard:
-        held = sum(p.dev_cards[card] for p in state.players.values())
-        played = sum(p.dev_cards_played[card] for p in state.players.values())
-        assert state.dev_deck[card] + held + played == DEV_CARD_COUNTS[card], card
+    # Every card is either still in the deck, held hidden, revealed (VP), or
+    # played. The total never changes.
+    hidden = sum(p.hidden_dev for p in state.players.values())
+    revealed = sum(p.dev_cards[c] for p in state.players.values() for c in DevCard)
+    played = sum(p.dev_cards_played[c] for p in state.players.values() for c in DevCard)
+    assert state.dev_deck_size + hidden + revealed + played == DEV_DECK_SIZE
 
 
 def test_setup_completes_and_grants_second_settlement_resources():
@@ -171,7 +173,7 @@ def test_build_city_upgrades_settlement():
 
 def test_monopoly_takes_all_of_one_resource():
     state = play_state()
-    state.players["red"].dev_cards[DevCard.MONOPOLY] = 1
+    state.players["red"].hidden_dev = 1
     give(state, "blue", wool=3)
     give(state, "white", wool=2)
     state = reduce(state, ev.MonopolyPlayed(player="red", resource=Resource.WOOL))
@@ -182,7 +184,7 @@ def test_monopoly_takes_all_of_one_resource():
 
 def test_year_of_plenty_draws_from_bank():
     state = play_state()
-    state.players["red"].dev_cards[DevCard.YEAR_OF_PLENTY] = 1
+    state.players["red"].hidden_dev = 1
     state = reduce(
         state,
         ev.YearOfPlentyPlayed(player="red", resources=(Resource.ORE, Resource.GRAIN)),
@@ -194,7 +196,7 @@ def test_year_of_plenty_draws_from_bank():
 
 def test_knight_grants_largest_army_after_three():
     state = play_state()
-    state.players["red"].dev_cards[DevCard.KNIGHT] = 3
+    state.players["red"].hidden_dev = 3
     desert = state.robber
     target = next(h for h in state.board.numbers if h != desert)
     for _ in range(3):
@@ -207,7 +209,7 @@ def test_winner_detected_at_ten_points():
     state = play_state()
     # Eight settlement/city points + Largest Army (2) = 10.
     state.players["red"].cities.update({1, 2, 3, 4})  # 8 VP
-    state.players["red"].dev_cards[DevCard.KNIGHT] = 3
+    state.players["red"].hidden_dev = 3
     desert = state.robber
     target = next(h for h in state.board.numbers if h != desert)
     for _ in range(3):
@@ -215,3 +217,42 @@ def test_winner_detected_at_ten_points():
     assert state.largest_army_holder == "red"
     assert state.winner == "red"
     assert state.phase is Phase.FINISHED
+
+
+def test_buy_dev_card_is_hidden_and_draws_from_deck():
+    state = play_state()
+    give(state, "red", ore=1, wool=1, grain=1)
+    state = reduce(state, ev.DevCardBought(player="red"))
+    red = state.players["red"]
+    assert red.hidden_dev == 1
+    # No type is recorded at purchase time.
+    assert all(v == 0 for v in red.dev_cards.values())
+    assert state.dev_deck_size == DEV_DECK_SIZE - 1
+    assert state.dev_bought_this_turn == 1
+    # Paid one ore/wool/grain to the bank.
+    assert red.resources[Resource.ORE] == 0
+    assert red.resources[Resource.WOOL] == 0
+    assert red.resources[Resource.GRAIN] == 0
+
+
+def test_reveal_victory_point_resolves_a_hidden_card():
+    state = play_state()
+    state.players["red"].hidden_dev = 2
+    assert state.victory_points("red") == 0
+    state = reduce(state, ev.VictoryPointRevealed(player="red"))
+    red = state.players["red"]
+    assert red.hidden_dev == 1
+    assert red.dev_cards[DevCard.VICTORY_POINT] == 1
+    assert state.victory_points("red") == 1
+
+
+def test_playing_a_hidden_card_records_its_type():
+    state = play_state()
+    state.players["red"].hidden_dev = 1
+    state = reduce(
+        state,
+        ev.YearOfPlentyPlayed(player="red", resources=(Resource.ORE, Resource.GRAIN)),
+    )
+    red = state.players["red"]
+    assert red.hidden_dev == 0
+    assert red.dev_cards_played[DevCard.YEAR_OF_PLENTY] == 1

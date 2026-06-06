@@ -6,14 +6,6 @@ import type { GameStateDTO } from "../types";
 const RES = ["brick", "lumber", "wool", "grain", "ore"] as const;
 type Res = (typeof RES)[number];
 
-const DEV = [
-  { v: "knight", label: "Knight" },
-  { v: "victory_point", label: "Victory Point" },
-  { v: "road_building", label: "Road Building" },
-  { v: "year_of_plenty", label: "Year of Plenty" },
-  { v: "monopoly", label: "Monopoly" },
-];
-
 type Apply = (cmd: Record<string, unknown>) => Promise<{ events: string[] }>;
 
 /** Best maritime ratio for `give`, from ports the current player occupies. */
@@ -108,17 +100,18 @@ export function ActionsPanel({
   const emptySides = Object.keys(giveSel).length === 0 || Object.keys(recvSel).length === 0;
   const tradeBlocked = enforce && (!!meLacks || !!partnerLacks || emptySides);
 
-  // Dev cards: affordable to buy, and which owned cards can still be played.
+  // Dev cards are recorded face-down: a purchase just adds a hidden card; its
+  // type is only learned when it is played or revealed. So legality is about
+  // having a playable hidden card, not about owning a specific type.
   const canAffordDev =
     !enforce || ((myRes.ore ?? 0) >= 1 && (myRes.wool ?? 0) >= 1 && (myRes.grain ?? 0) >= 1);
-  const canPlayDev = !enforce || !state.dev_played_this_turn;
-  const owns = (card: string) =>
-    !enforce ||
-    (state.players[me]?.dev_cards[card] ?? 0) - (state.dev_bought_this_turn[card] ?? 0) > 0;
-  const showYoP = canPlayDev && owns("year_of_plenty");
-  const showMono = canPlayDev && owns("monopoly");
-  const showRB = canPlayDev && owns("road_building");
-  const anyPlayable = showYoP || showMono || showRB;
+  const hiddenDev = state.players[me]?.hidden_dev ?? 0;
+  const deckOut = state.dev_deck_size <= 0;
+  // A card cannot be played the turn it was drawn, and only one per turn.
+  const playableHidden = hiddenDev - (state.dev_bought_this_turn ?? 0);
+  const canPlayDev = !enforce || (!state.dev_played_this_turn && playableHidden > 0);
+  // A VP card may be revealed even the turn it was drawn.
+  const canRevealVp = !enforce || hiddenDev > 0;
 
   return (
     <div className="panel actions">
@@ -234,46 +227,53 @@ export function ActionsPanel({
         </section>}
 
       {showTrades && <section>
-        <div className="row-label">Buy development card <span className="muted">(<ResIcon r="ore" /><ResIcon r="wool" /><ResIcon r="grain" />, click the one drawn)</span></div>
+        <div className="row-label">
+          Buy development card <span className="muted">(<ResIcon r="ore" /><ResIcon r="wool" /><ResIcon r="grain" />)</span>
+        </div>
         <div className="dev-buy">
-          {DEV.map((d) => {
-            const deckOut = enforce && (state.dev_deck[d.v] ?? 0) <= 0;
-            const off = dis || (enforce && (!canAffordDev || deckOut));
-            return (
-              <button
-                key={d.v}
-                className="dev-buy-btn"
-                disabled={off}
-                title={deckOut ? "none left in deck" : !canAffordDev && enforce ? "need ore, wool, grain" : `record drawing a ${d.label}`}
-                onClick={() => run({ type: "BuyDevCard", player: me, card: d.v }, `buy ${d.label}`)}
-              >
-                {d.label}
-              </button>
-            );
-          })}
+          <button
+            className="dev-buy-btn"
+            disabled={dis || (enforce && (!canAffordDev || deckOut))}
+            title={
+              deckOut ? "deck is empty"
+                : !canAffordDev && enforce ? "need ore, wool, grain"
+                : "record drawing a card — its type stays hidden until it's played or revealed"
+            }
+            onClick={() => run({ type: "BuyDevCard", player: me }, "buy dev card")}
+          >
+            Buy (hidden)
+          </button>
+          <span className="muted small">{state.dev_deck_size} left · {hiddenDev} hidden in hand</span>
         </div>
 
-        {anyPlayable && <div className="row-label">Play a card</div>}
-        {showYoP && (
-          <div className="action-row">
-            Year of Plenty
-            <select value={yop1} onChange={(e) => setYop1(e.target.value as Res)}>{resOptions}</select>
-            <select value={yop2} onChange={(e) => setYop2(e.target.value as Res)}>{resOptions}</select>
-            <button disabled={dis} onClick={() => run({ type: "PlayYearOfPlenty", player: me, resources: [yop1, yop2] }, "year of plenty")}>Play</button>
-          </div>
-        )}
-        {showMono && (
-          <div className="action-row">
-            Monopoly
-            <select value={mono} onChange={(e) => setMono(e.target.value as Res)}>{resOptions}</select>
-            <button disabled={dis} onClick={() => run({ type: "PlayMonopoly", player: me, resource: mono }, `monopoly ${mono}`)}>Play</button>
-          </div>
-        )}
-        {showRB && (
-          <div className="action-row">
-            Road Building
-            <button disabled={dis || !onRoadBuilding} onClick={() => onRoadBuilding?.()}>Place roads on map</button>
-          </div>
+        <div className="row-label">Play / reveal a card</div>
+        <div className="action-row">
+          Victory Point
+          <button
+            disabled={dis || (enforce && !canRevealVp)}
+            title="reveal a hidden card as a Victory Point (it then counts toward your score)"
+            onClick={() => run({ type: "RevealVictoryPoint", player: me }, "reveal VP")}
+          >Reveal</button>
+          <span className="muted small">when a player shows a VP card</span>
+        </div>
+        {canPlayDev && (
+          <>
+            <div className="action-row">
+              Year of Plenty
+              <select value={yop1} onChange={(e) => setYop1(e.target.value as Res)}>{resOptions}</select>
+              <select value={yop2} onChange={(e) => setYop2(e.target.value as Res)}>{resOptions}</select>
+              <button disabled={dis} onClick={() => run({ type: "PlayYearOfPlenty", player: me, resources: [yop1, yop2] }, "year of plenty")}>Play</button>
+            </div>
+            <div className="action-row">
+              Monopoly
+              <select value={mono} onChange={(e) => setMono(e.target.value as Res)}>{resOptions}</select>
+              <button disabled={dis} onClick={() => run({ type: "PlayMonopoly", player: me, resource: mono }, `monopoly ${mono}`)}>Play</button>
+            </div>
+            <div className="action-row">
+              Road Building
+              <button disabled={dis || !onRoadBuilding} onClick={() => onRoadBuilding?.()}>Place roads on map</button>
+            </div>
+          </>
         )}
         <p className="muted small">Knights are played via the Robber piece.</p>
       </section>}

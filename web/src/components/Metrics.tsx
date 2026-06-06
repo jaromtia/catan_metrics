@@ -230,7 +230,7 @@ function SummaryTable({ m }: { m: MetricsDTO }) {
         <tbody>
           {m.player_order.map((pid) => {
             const pm = m.players[pid];
-            const devB = Object.values(pm.dev_bought).reduce((a, b) => a + b, 0);
+            const devB = pm.dev_bought;
             const devP = Object.values(pm.dev_played).reduce((a, b) => a + b, 0);
             return (
               <tr key={pid}>
@@ -259,15 +259,17 @@ export function Metrics({ m }: { m: MetricsDTO }) {
   return (
     <div className="panel metrics">
       <h3>Metrics · turn {m.num_turns} · {m.dice_total} rolls{m.winner ? ` · 🏆 ${m.winner}` : ""}</h3>
-      <Section title="Summary"><SummaryTable m={m} /></Section>
-      <Section title="Victory points over time"><TimelineChart m={m} series={(p) => m.players[p].vp_timeline.map((t) => [t[0], t[1]])} unit="VP" /></Section>
-      <Section title="Dice rolls"><DiceHistogram m={m} /></Section>
-      <Section title="Luck"><LuckBars m={m} /></Section>
-      <Section title="Production by resource"><ProductionByResource m={m} /></Section>
-      <Section title="Robber"><RobberTable m={m} /></Section>
-      <Section title="Hand size over time" defaultOpen={false}><TimelineChart m={m} series={(p) => m.players[p].hand_timeline} unit="cards" /></Section>
-      <Section title="Pip equity over time" defaultOpen={false}><TimelineChart m={m} series={(p) => m.players[p].pip_timeline} unit="pips" /></Section>
-      <Section title="Trade flow" defaultOpen={false}><TradeFlow m={m} /></Section>
+      <div className="metrics-grid">
+        <Section title="Summary"><SummaryTable m={m} /></Section>
+        <Section title="Victory points over time"><TimelineChart m={m} series={(p) => m.players[p].vp_timeline.map((t) => [t[0], t[1]])} unit="VP" /></Section>
+        <Section title="Dice rolls"><DiceHistogram m={m} /></Section>
+        <Section title="Luck"><LuckBars m={m} /></Section>
+        <Section title="Production by resource"><ProductionByResource m={m} /></Section>
+        <Section title="Robber"><RobberTable m={m} /></Section>
+        <Section title="Hand size over time" defaultOpen={false}><TimelineChart m={m} series={(p) => m.players[p].hand_timeline} unit="cards" /></Section>
+        <Section title="Pip equity over time" defaultOpen={false}><TimelineChart m={m} series={(p) => m.players[p].pip_timeline} unit="pips" /></Section>
+        <Section title="Trade flow" defaultOpen={false}><TradeFlow m={m} /></Section>
+      </div>
     </div>
   );
 }

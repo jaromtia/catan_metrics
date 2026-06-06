@@ -44,7 +44,8 @@ class PlayerMetrics:
     cards_stolen_from_me: int = 0
     robber_blocked: int = 0       # production this player denied with their robber
     knights_played: int = 0
-    dev_bought: dict[DevCard, int] = field(default_factory=lambda: {c: 0 for c in DevCard})
+    dev_bought: int = 0   # cards drawn (type hidden at purchase time)
+    vp_revealed: int = 0  # hidden cards revealed to be Victory Point cards
     dev_played: dict[DevCard, int] = field(default_factory=lambda: {c: 0 for c in DevCard})
     trades_domestic: int = 0
     trades_maritime: int = 0
@@ -101,7 +102,8 @@ class GameMetrics:
                     "cards_stolen_from_me": pm.cards_stolen_from_me,
                     "robber_blocked": pm.robber_blocked,
                     "knights_played": pm.knights_played,
-                    "dev_bought": {c.value: a for c, a in pm.dev_bought.items()},
+                    "dev_bought": pm.dev_bought,
+                    "vp_revealed": pm.vp_revealed,
                     "dev_played": {c.value: a for c, a in pm.dev_played.items()},
                     "trades_domestic": pm.trades_domestic,
                     "trades_maritime": pm.trades_maritime,
@@ -186,8 +188,10 @@ def _record(g: GameMetrics, prev: GameState | None, state: GameState, seq: int, 
             g.players[p].dev_played[DevCard.KNIGHT] += 1
             if vic is not None:
                 _steal(g, p, vic)
-        case ev.DevCardBought(player=p, card=c):
-            g.players[p].dev_bought[c] += 1
+        case ev.DevCardBought(player=p):
+            g.players[p].dev_bought += 1
+        case ev.VictoryPointRevealed(player=p):
+            g.players[p].vp_revealed += 1
         case ev.RoadBuildingPlayed(player=p):
             g.players[p].dev_played[DevCard.ROAD_BUILDING] += 1
         case ev.YearOfPlentyPlayed(player=p):

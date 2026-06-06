@@ -16,7 +16,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from .board import Board
-from .constants import DevCard, Resource
+from .constants import Resource
 
 PlayerId = str
 Coord = tuple[int, int]
@@ -87,8 +87,19 @@ class BuildCity:
 
 @dataclass(frozen=True)
 class BuyDevCard:
+    """Record that a player drew a development card.
+
+    The drawn card stays hidden: no type is recorded here. The type is learned
+    later, when the card is played (Knight/Road Building/Year of Plenty/Monopoly)
+    or revealed (:class:`RevealVictoryPoint`).
+    """
     player: PlayerId
-    card: DevCard          # the card actually drawn (companion observes it)
+
+
+@dataclass(frozen=True)
+class RevealVictoryPoint:
+    """Reveal one hidden card as a Victory Point card (it now counts as VP)."""
+    player: PlayerId
 
 
 @dataclass(frozen=True)
@@ -162,6 +173,7 @@ Command = (
     | BuildSettlement
     | BuildCity
     | BuyDevCard
+    | RevealVictoryPoint
     | PlayKnight
     | PlayRoadBuilding
     | PlayYearOfPlenty

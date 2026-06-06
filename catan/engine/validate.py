@@ -21,6 +21,7 @@ from ..domain.constants import (
     CITY_COST,
     DEFAULT_BANK_TRADE_RATIO,
     DEV_CARD_COST,
+    DEV_CARD_COUNTS,
     ROAD_COST,
     SETTLEMENT_COST,
     DevCard,
@@ -180,10 +181,26 @@ def _gate_play_action(state: GameState, pid: PlayerId, strict: bool = True) -> l
     return e
 
 
+def _resolved_count(state: GameState, card: DevCard) -> int:
+    """How many cards of this type have already left the deck (across players).
+
+    Victory Point cards are "resolved" by being revealed (held face-up); the
+    others by being played.
+    """
+    if card is DevCard.VICTORY_POINT:
+        return sum(ps.dev_cards[DevCard.VICTORY_POINT] for ps in state.players.values())
+    return sum(ps.dev_cards_played[card] for ps in state.players.values())
+
+
 def _gate_play_dev(
     state: GameState, pid: PlayerId, card: DevCard, strict: bool = True
 ) -> list[str]:
-    """Gate for playing a development card (allowed before rolling)."""
+    """Gate for playing a development card (allowed before rolling).
+
+    Drawn cards are hidden, so any one of a player's hidden cards may be declared
+    to be the card being played. A card cannot be played the same turn it was
+    drawn, and no more of a type may exist than the deck ever held.
+    """
     if not strict:
         return []  # dev/sandbox mode: game-flow gating is off
     e: list[str] = []
@@ -200,9 +217,11 @@ def _gate_play_dev(
         e.append("move the robber first")
     if state.dev_played_this_turn:
         e.append("already played a development card this turn")
-    playable = state.players[pid].dev_cards[card] - state.dev_bought_this_turn[card]
+    playable = state.players[pid].hidden_dev - state.dev_bought_this_turn
     if playable <= 0:
-        e.append(f"no playable {card.value} card")
+        e.append("no playable development card")
+    elif _resolved_count(state, card) >= DEV_CARD_COUNTS[card]:
+        e.append(f"all {DEV_CARD_COUNTS[card]} {card.value} cards have been played")
     return e
 
 
@@ -265,8 +284,10 @@ def validate(state: GameState | None, command: cmd.Command, *, strict: bool = Tr
             return _v_build_settlement(state, p, v, strict)
         case cmd.BuildCity(player=p, vertex=v):
             return _v_build_city(state, p, v, strict)
-        case cmd.BuyDevCard(player=p, card=c):
-            return _v_buy_dev(state, p, c, strict)
+        case cmd.BuyDevCard(player=p):
+            return _v_buy_dev(state, p, strict)
+        case cmd.RevealVictoryPoint(player=p):
+            return _v_reveal_vp(state, p, strict)
         case cmd.PlayKnight(player=p, hex=h, victim=vic, resource=r):
             return _v_play_knight(state, p, h, vic, r, strict)
         case cmd.PlayRoadBuilding(player=p, edges=edges):
@@ -451,20 +472,41 @@ def _v_build_city(state: GameState, p: PlayerId, v: int, strict: bool = True) ->
     return ok(ev.CityBuilt(player=p, vertex=v))
 
 
-def _v_buy_dev(state: GameState, p: PlayerId, card: DevCard, strict: bool = True) -> Result:
+def _v_buy_dev(state: GameState, p: PlayerId, strict: bool = True) -> Result:
     errors = _gate_play_action(state, p, strict)
     if p not in state.players:
         return err("unknown player")
     if strict:
-        if sum(state.dev_deck.values()) <= 0:
+        if state.dev_deck_size <= 0:
             errors.append("development deck is empty")
-        elif state.dev_deck[card] <= 0:
-            errors.append(f"no {card.value} cards left in the deck")
         if not _can_afford(state, p, DEV_CARD_COST):
             errors.append("cannot afford a development card")
     if errors:
         return Result(ok=False, errors=errors)
-    return ok(ev.DevCardBought(player=p, card=card))
+    return ok(ev.DevCardBought(player=p))
+
+
+def _v_reveal_vp(state: GameState, p: PlayerId, strict: bool = True) -> Result:
+    if p not in state.players:
+        return err("unknown player")
+    if strict:
+        errors: list[str] = []
+        if state.phase is not Phase.PLAY:
+            return err("not in play phase")
+        if state.winner is not None:
+            errors.append("game is over")
+        if p != state.current_player:
+            errors.append(f"not {p}'s turn")
+        # A VP card may be revealed the same turn it is drawn (e.g. to win), so
+        # there is no "bought this turn" restriction here -- only that a hidden
+        # card exists and that fewer than the deck's VP cards are already shown.
+        if state.players[p].hidden_dev <= 0:
+            errors.append("no hidden development card to reveal")
+        elif _resolved_count(state, DevCard.VICTORY_POINT) >= DEV_CARD_COUNTS[DevCard.VICTORY_POINT]:
+            errors.append("all victory point cards are already revealed")
+        if errors:
+            return Result(ok=False, errors=errors)
+    return ok(ev.VictoryPointRevealed(player=p))
 
 
 def _v_play_knight(state: GameState, p: PlayerId, h, vic, r, strict: bool = True) -> Result:

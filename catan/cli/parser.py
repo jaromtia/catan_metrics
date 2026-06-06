@@ -8,7 +8,7 @@ expected player in setup) so the operator types as little as possible.
 from __future__ import annotations
 
 from ..domain import commands as cmd
-from ..domain.constants import DevCard, Resource
+from ..domain.constants import Resource
 from ..domain.state import GameState, Phase
 from ..engine.validate import setup_expectation
 
@@ -18,14 +18,6 @@ _RES = {
     "wool": Resource.WOOL, "sheep": Resource.WOOL,
     "grain": Resource.GRAIN, "wheat": Resource.GRAIN,
     "ore": Resource.ORE, "rock": Resource.ORE, "stone": Resource.ORE,
-}
-
-_DEV = {
-    "knight": DevCard.KNIGHT, "soldier": DevCard.KNIGHT,
-    "vp": DevCard.VICTORY_POINT, "victory_point": DevCard.VICTORY_POINT,
-    "road_building": DevCard.ROAD_BUILDING, "roadbuilding": DevCard.ROAD_BUILDING,
-    "year_of_plenty": DevCard.YEAR_OF_PLENTY, "yop": DevCard.YEAR_OF_PLENTY,
-    "monopoly": DevCard.MONOPOLY,
 }
 
 
@@ -38,13 +30,6 @@ def _res(token: str) -> Resource:
         return _RES[token.lower()]
     except KeyError:
         raise ParseError(f"unknown resource '{token}'") from None
-
-
-def _dev(token: str) -> DevCard:
-    try:
-        return _DEV[token.lower()]
-    except KeyError:
-        raise ParseError(f"unknown development card '{token}'") from None
 
 
 def _hex(token: str) -> tuple[int, int]:
@@ -98,7 +83,9 @@ def build_command(state: GameState, line: str) -> cmd.Command:
                 return cmd.BuildCity(player=p, vertex=int(args[1]))
             raise ParseError("build road|settlement|city <id>")
         case "buy":
-            return cmd.BuyDevCard(player=p, card=_dev(args[0]))
+            return cmd.BuyDevCard(player=p)
+        case "reveal":
+            return cmd.RevealVictoryPoint(player=p)
         case "play":
             return _play(p, args)
         case "robber":
@@ -149,7 +136,8 @@ commands (acting player is inferred):
   setup:  settlement <v>            road <e>
   turn:   roll <d1> <d2>            end
   build:  build road <e>           build settlement <v>      build city <v>
-  dev:    buy <card>               play knight <q,r> [victim [res]]
+  dev:    buy                      reveal   (reveal a hidden card as a VP)
+          play knight <q,r> [victim [res]]
           play road <e1> [e2]      play yop <res> <res>       play monopoly <res>
   seven:  discard <player> <res:n,...>     robber <q,r> [victim [res]]
   trade:  trade bank <give> <n> <recv> <n>

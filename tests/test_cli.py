@@ -2,7 +2,7 @@
 
 from catan.domain import commands as cmd
 from catan.domain.board import standard_board
-from catan.domain.constants import DevCard, Resource
+from catan.domain.constants import Resource
 from catan.domain.state import GameState, Phase
 from catan.cli.parser import build_command
 from catan.engine.validate import execute, setup_expectation
@@ -37,7 +37,8 @@ def test_play_command_parsing():
         "build road 7": cmd.BuildRoad(player="red", edge=7),
         "build settlement 9": cmd.BuildSettlement(player="red", vertex=9),
         "build city 9": cmd.BuildCity(player="red", vertex=9),
-        "buy knight": cmd.BuyDevCard(player="red", card=DevCard.KNIGHT),
+        "buy": cmd.BuyDevCard(player="red"),
+        "reveal": cmd.RevealVictoryPoint(player="red"),
         "play road 1 2": cmd.PlayRoadBuilding(player="red", edges=(1, 2)),
         "play monopoly wool": cmd.PlayMonopoly(player="red", resource=Resource.WOOL),
         "play yop ore grain": cmd.PlayYearOfPlenty(

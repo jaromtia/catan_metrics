@@ -1,0 +1,30 @@
+# Python
+.venv/
+**/__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+pytest-cache-files-*/
+
+# Database (never bake game data into images)
+*.db
+game.db
+catan.db
+
+# Web build artifacts / deps (rebuilt inside the image)
+web/node_modules/
+web/dist/
+web/tsconfig.tsbuildinfo
+web/tsconfig.node.tsbuildinfo
+
+# VCS / tooling
+.git/
+.gitignore
+thoughts/
+
+# Docs that don't belong in runtime images
+capstone/
+capstone-labs/
+docs/
+*.md
+!README.md

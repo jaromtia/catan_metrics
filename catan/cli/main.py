@@ -19,7 +19,7 @@ import sys
 
 from ..domain import commands as cmd
 from ..domain.board import custom_board, random_board, standard_board
-from ..domain.constants import BANK_RESOURCE_COUNT, DEV_CARD_COUNTS, Resource, DevCard
+from ..domain.constants import BANK_RESOURCE_COUNT, DEV_DECK_SIZE, Resource, DevCard
 from ..engine.projections import compute_metrics
 from ..store.codec import encode_event
 from ..store.event_store import EventStore, UnknownGame
@@ -116,11 +116,11 @@ def cmd_replay(args) -> int:
         total = state.bank[r] + sum(p.resources[r] for p in state.players.values())
         if total != BANK_RESOURCE_COUNT:
             errors.append(f"resource {r.value}: {total} != {BANK_RESOURCE_COUNT}")
-    for c in DevCard:
-        held = sum(p.dev_cards[c] for p in state.players.values())
-        played = sum(p.dev_cards_played[c] for p in state.players.values())
-        if state.dev_deck[c] + held + played != DEV_CARD_COUNTS[c]:
-            errors.append(f"dev {c.value}: conservation broken")
+    hidden = sum(p.hidden_dev for p in state.players.values())
+    revealed = sum(p.dev_cards[c] for p in state.players.values() for c in DevCard)
+    played = sum(p.dev_cards_played[c] for p in state.players.values() for c in DevCard)
+    if state.dev_deck_size + hidden + revealed + played != DEV_DECK_SIZE:
+        errors.append("dev cards: conservation broken")
     if errors:
         print("INTEGRITY FAILED:")
         for e in errors:

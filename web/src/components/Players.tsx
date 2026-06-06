@@ -1,3 +1,4 @@
+import type React from "react";
 import { playerColor } from "../colors";
 import { ResIcon } from "../icons";
 import type { GameStateDTO } from "../types";
@@ -15,25 +16,46 @@ function vp(state: GameStateDTO, pid: string): number {
 
 export function Players({ state }: { state: GameStateDTO }) {
   const order = state.player_order;
+  const currentPid = order[state.current_index];
+  const currentColor = playerColor(currentPid, order);
   return (
     <div className="panel">
-      <h3>Players</h3>
+      <div className="players-header">
+        <h3>Players</h3>
+        <span
+          className="turn-indicator"
+          style={{ "--c": currentColor } as React.CSSProperties}
+        >
+          <span className="dot" style={{ background: currentColor }} />
+          {currentPid}&rsquo;s turn
+        </span>
+      </div>
       <table className="players">
         <thead>
           <tr>
-            <th></th><th>VP</th><th>hand</th>
+            <th></th>
+            <th className="help" title="Victory points">VP</th>
+            <th className="help" title="Cards in hand">hand</th>
             {RES.map((r) => <th key={r}><ResIcon r={r} /></th>)}
-            <th>S</th><th>C</th><th>R</th><th>kt</th><th>dev</th>
+            <th className="help" title="Settlements">S</th>
+            <th className="help" title="Cities">C</th>
+            <th className="help" title="Roads">R</th>
+            <th className="help" title="Knights played">kt</th>
+            <th className="help" title="Development cards in hand">dev</th>
           </tr>
         </thead>
         <tbody>
           {order.map((pid) => {
             const p = state.players[pid];
             const hand = Object.values(p.resources).reduce((a, b) => a + b, 0);
-            const dev = Object.values(p.dev_cards).reduce((a, b) => a + b, 0);
-            const current = order[state.current_index] === pid;
+            const dev = (p.hidden_dev ?? 0) + Object.values(p.dev_cards).reduce((a, b) => a + b, 0);
+            const isCurrent = pid === currentPid;
             return (
-              <tr key={pid} className={current ? "current" : ""}>
+              <tr
+                key={pid}
+                className={isCurrent ? "current" : ""}
+                style={{ "--c": playerColor(pid, order) } as React.CSSProperties}
+              >
                 <td>
                   <span className="dot" style={{ background: playerColor(pid, order) }} />
                   {pid}
@@ -60,7 +82,7 @@ export function Players({ state }: { state: GameStateDTO }) {
         {RES.map((r) => (
           <span key={r} className="bank-res"><ResIcon r={r} /> {state.bank[r]}</span>
         ))}
-        {" "}· dev {Object.values(state.dev_deck).reduce((a, b) => a + b, 0)}
+        {" "}· dev {state.dev_deck_size}
       </div>
     </div>
   );

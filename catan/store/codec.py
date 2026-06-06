@@ -11,7 +11,7 @@ from __future__ import annotations
 from ..domain import commands as cmd
 from ..domain import events as ev
 from ..domain.board import Board, Port
-from ..domain.constants import PIPS, DevCard, PortType, Resource, Terrain
+from ..domain.constants import DEV_DECK_SIZE, PIPS, DevCard, PortType, Resource, Terrain
 from ..domain.geometry import build_topology
 from ..domain.state import GameState, Phase, PlayerState
 
@@ -92,6 +92,7 @@ def encode_state(state: GameState) -> dict:
         "players": {
             pid: {
                 "resources": _enc_resmap(p.resources),
+                "hidden_dev": p.hidden_dev,
                 "dev_cards": _enc_devmap(p.dev_cards),
                 "dev_cards_played": _enc_devmap(p.dev_cards_played),
                 "knights_played": p.knights_played,
@@ -108,7 +109,7 @@ def encode_state(state: GameState) -> dict:
         "dice": list(state.dice) if state.dice is not None else None,
         "has_rolled": state.has_rolled,
         "bank": _enc_resmap(state.bank),
-        "dev_deck": _enc_devmap(state.dev_deck),
+        "dev_deck_size": state.dev_deck_size,
         "robber": _coord_or_none(state.robber),
         "longest_road_holder": state.longest_road_holder,
         "largest_army_holder": state.largest_army_holder,
@@ -116,7 +117,7 @@ def encode_state(state: GameState) -> dict:
         "pending_discards": dict(state.pending_discards),
         "robber_pending": state.robber_pending,
         "dev_played_this_turn": state.dev_played_this_turn,
-        "dev_bought_this_turn": _enc_devmap(state.dev_bought_this_turn),
+        "dev_bought_this_turn": state.dev_bought_this_turn,
     }
 
 
@@ -125,6 +126,7 @@ def decode_state(d: dict) -> GameState:
     for pid, p in d["players"].items():
         ps = PlayerState(pid=pid)
         ps.resources = _dec_resmap(p["resources"])
+        ps.hidden_dev = p.get("hidden_dev", 0)
         ps.dev_cards = _dec_devmap(p["dev_cards"])
         ps.dev_cards_played = _dec_devmap(p["dev_cards_played"])
         ps.knights_played = p["knights_played"]
@@ -143,7 +145,7 @@ def decode_state(d: dict) -> GameState:
         dice=tuple(d["dice"]) if d["dice"] is not None else None,
         has_rolled=d["has_rolled"],
         bank=_dec_resmap(d["bank"]),
-        dev_deck=_dec_devmap(d["dev_deck"]),
+        dev_deck_size=d.get("dev_deck_size", DEV_DECK_SIZE),
         robber=tuple(d["robber"]) if d["robber"] is not None else None,
         longest_road_holder=d["longest_road_holder"],
         largest_army_holder=d["largest_army_holder"],
@@ -151,7 +153,7 @@ def decode_state(d: dict) -> GameState:
         pending_discards=dict(d["pending_discards"]),
         robber_pending=d["robber_pending"],
         dev_played_this_turn=d["dev_played_this_turn"],
-        dev_bought_this_turn=_dec_devmap(d["dev_bought_this_turn"]),
+        dev_bought_this_turn=d.get("dev_bought_this_turn", 0),
     )
 
 
@@ -188,8 +190,8 @@ def encode_event(e: ev.Event) -> dict:
             return {"type": t, "player": p, "vertex": v}
         case ev.CityBuilt(player=p, vertex=v):
             return {"type": t, "player": p, "vertex": v}
-        case ev.DevCardBought(player=p, card=c):
-            return {"type": t, "player": p, "card": c.value}
+        case ev.DevCardBought(player=p):
+            return {"type": t, "player": p}
         case ev.KnightPlayed(player=p, hex=h, victim=vic, resource=r):
             return {"type": t, "player": p, "hex": list(h), "victim": vic,
                     "resource": r.value if r is not None else None}
@@ -246,7 +248,7 @@ def decode_event(d: dict) -> ev.Event:
         case "CityBuilt":
             return ev.CityBuilt(player=d["player"], vertex=d["vertex"])
         case "DevCardBought":
-            return ev.DevCardBought(player=d["player"], card=DevCard(d["card"]))
+            return ev.DevCardBought(player=d["player"])
         case "KnightPlayed":
             r = d["resource"]
             return ev.KnightPlayed(player=d["player"], hex=tuple(d["hex"]),
@@ -297,7 +299,9 @@ def decode_command(d: dict) -> cmd.Command:
         case "BuildCity":
             return cmd.BuildCity(player=p, vertex=d["vertex"])
         case "BuyDevCard":
-            return cmd.BuyDevCard(player=p, card=DevCard(d["card"]))
+            return cmd.BuyDevCard(player=p)
+        case "RevealVictoryPoint":
+            return cmd.RevealVictoryPoint(player=p)
         case "PlayKnight":
             r = d.get("resource")
             return cmd.PlayKnight(player=p, hex=tuple(d["hex"]), victim=d.get("victim"),

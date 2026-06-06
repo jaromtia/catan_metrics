@@ -3,7 +3,7 @@
 from catan.domain import commands as cmd
 from catan.domain import events as ev
 from catan.domain.board import standard_board
-from catan.domain.constants import Resource, DevCard
+from catan.domain.constants import Resource
 from catan.engine.validate import execute
 from catan.store.codec import (
     decode_board,
@@ -78,7 +78,7 @@ def test_every_event_type_round_trips():
         ev.RoadBuilt(player="red", edge=7),
         ev.SettlementBuilt(player="red", vertex=9),
         ev.CityBuilt(player="red", vertex=9),
-        ev.DevCardBought(player="red", card=DevCard.KNIGHT),
+        ev.DevCardBought(player="red"),
         ev.KnightPlayed(player="red", hex=h, victim="blue", resource=Resource.WOOL),
         ev.KnightPlayed(player="red", hex=h),
         ev.RoadBuildingPlayed(player="red", edges=(1, 2)),

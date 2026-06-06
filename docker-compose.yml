@@ -1,0 +1,28 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      # Event-sourced SQLite log lives on the named volume below.
+      CATAN_DB: /data/catan.db
+    volumes:
+      - catan-data:/data
+    # Exposed for direct API access / debugging; the web service proxies to it
+    # internally over the compose network regardless.
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    depends_on:
+      - api
+    ports:
+      - "8080:80"
+    restart: unless-stopped
+
+volumes:
+  catan-data:

@@ -84,6 +84,12 @@ DEV_CARD_COUNTS: dict[DevCard, int] = {
     DevCard.MONOPOLY: 2,
 }
 
+# Total cards in the development deck (25). A purchase is recorded without
+# observing the drawn type (it stays hidden in the buyer's hand); the type is
+# only learned when the card is later played or revealed, so the deck is tracked
+# as a single remaining count rather than per type.
+DEV_DECK_SIZE = sum(DEV_CARD_COUNTS.values())
+
 # Pieces available to each player.
 SETTLEMENTS_PER_PLAYER = 5
 CITIES_PER_PLAYER = 4

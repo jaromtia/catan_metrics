@@ -110,14 +110,14 @@ def _apply(s: GameState, event: ev.Event) -> None:
             _pay(s, p, CITY_COST)
             s.players[p].settlements.discard(v)
             s.players[p].cities.add(v)
-        case ev.DevCardBought(player=p, card=card):
+        case ev.DevCardBought(player=p):
             _pay(s, p, DEV_CARD_COST)
-            s.dev_deck[card] -= 1
-            s.players[p].dev_cards[card] += 1
-            s.dev_bought_this_turn[card] += 1
+            s.dev_deck_size -= 1
+            s.players[p].hidden_dev += 1
+            s.dev_bought_this_turn += 1
         case ev.KnightPlayed(player=p, hex=h, victim=vic, resource=r):
             ps = s.players[p]
-            ps.dev_cards[DevCard.KNIGHT] -= 1
+            ps.hidden_dev -= 1
             ps.dev_cards_played[DevCard.KNIGHT] += 1
             ps.knights_played += 1
             s.robber = h
@@ -128,7 +128,7 @@ def _apply(s: GameState, event: ev.Event) -> None:
             s.largest_army_holder = update_largest_army(s, p)
         case ev.RoadBuildingPlayed(player=p, edges=edges):
             ps = s.players[p]
-            ps.dev_cards[DevCard.ROAD_BUILDING] -= 1
+            ps.hidden_dev -= 1
             ps.dev_cards_played[DevCard.ROAD_BUILDING] += 1
             for e in edges:
                 ps.roads.add(e)
@@ -136,7 +136,7 @@ def _apply(s: GameState, event: ev.Event) -> None:
             s.longest_road_holder = recompute_longest_road(s)
         case ev.YearOfPlentyPlayed(player=p, resources=res):
             ps = s.players[p]
-            ps.dev_cards[DevCard.YEAR_OF_PLENTY] -= 1
+            ps.hidden_dev -= 1
             ps.dev_cards_played[DevCard.YEAR_OF_PLENTY] += 1
             for r in res:
                 s.bank[r] -= 1
@@ -144,7 +144,7 @@ def _apply(s: GameState, event: ev.Event) -> None:
             s.dev_played_this_turn = True
         case ev.MonopolyPlayed(player=p, resource=r):
             ps = s.players[p]
-            ps.dev_cards[DevCard.MONOPOLY] -= 1
+            ps.hidden_dev -= 1
             ps.dev_cards_played[DevCard.MONOPOLY] += 1
             s.dev_played_this_turn = True
             taken = 0
@@ -154,8 +154,11 @@ def _apply(s: GameState, event: ev.Event) -> None:
                 taken += s.players[other].resources[r]
                 s.players[other].resources[r] = 0
             ps.resources[r] += taken
-        case ev.VictoryPointRevealed():
-            pass  # informational; VP cards already count toward the total
+        case ev.VictoryPointRevealed(player=p):
+            # A hidden card is revealed to be a VP card; it now counts toward VP.
+            ps = s.players[p]
+            ps.hidden_dev -= 1
+            ps.dev_cards[DevCard.VICTORY_POINT] += 1
         case ev.ResourcesSet(player=p, resources=res):
             for r, amt in res.items():
                 s.players[p].resources[r] = amt
@@ -214,7 +217,7 @@ def _end_turn(s: GameState) -> None:
     s.has_rolled = False
     s.dice = None
     s.dev_played_this_turn = False
-    s.dev_bought_this_turn = {c: 0 for c in DevCard}
+    s.dev_bought_this_turn = 0
     s.robber_pending = False
     s.pending_discards = {}
     if s.current_index == 0:
