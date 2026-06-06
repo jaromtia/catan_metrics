@@ -32,7 +32,7 @@ export function CommandBar({ disabled, apply }: Props) {
   }
 
   return (
-    <div className="panel">
+    <div className="panel command">
       <h3>Command</h3>
       <form onSubmit={submit} className="cmdbar">
         <input

@@ -19,7 +19,7 @@ export function Players({ state }: { state: GameStateDTO }) {
   const currentPid = order[state.current_index];
   const currentColor = playerColor(currentPid, order);
   return (
-    <div className="panel">
+    <div className="panel players">
       <div className="players-header">
         <h3>Players</h3>
         <span

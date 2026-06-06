@@ -44,6 +44,12 @@ export function ActionsPanel({
   const showTrades = variant !== "roll";
   const others = state.player_order.filter((p) => p !== me);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  // Keep the secondary trade/card controls out of the way on small screens so
+  // the primary turn action sits right under the guide; expanded by default on
+  // desktop where there's room.
+  const [showMore, setShowMore] = useState(
+    () => typeof window === "undefined" || !window.matchMedia("(max-width: 980px)").matches,
+  );
 
   async function run(cmd: Record<string, unknown>, label: string) {
     try {
@@ -134,7 +140,13 @@ export function ActionsPanel({
         </div>
       </section>
 
-      {showTrades && <section>
+      {showTrades && (
+        <button type="button" className="link more-toggle" onClick={() => setShowMore((s) => !s)}>
+          {showMore ? "▾ hide trades & cards" : "▸ trades & cards"}
+        </button>
+      )}
+
+      {showTrades && showMore && <section>
         <div className="row-label">Bank / port trade</div>
         <div className="action-row">
           give
@@ -163,7 +175,7 @@ export function ActionsPanel({
         )}
       </section>}
 
-      {showTrades && <section>
+      {showTrades && showMore && <section>
         <div className="row-label">Record a trade</div>
         <div className="action-row">
           with
@@ -226,7 +238,7 @@ export function ActionsPanel({
         )}
         </section>}
 
-      {showTrades && <section>
+      {showTrades && showMore && <section>
         <div className="row-label">
           Buy development card <span className="muted">(<ResIcon r="ore" /><ResIcon r="wool" /><ResIcon r="grain" />)</span>
         </div>

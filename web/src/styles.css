@@ -54,7 +54,7 @@ code {
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
 }
 
-.layout .right > .panel:last-child {
+.side-panels > .panel:last-child {
   margin-bottom: 0;
 }
 
@@ -178,6 +178,25 @@ select {
   color: var(--muted);
 }
 
+/* collapsed-header toggle (mobile only; hidden on desktop) */
+.nav-toggle {
+  display: none;
+  margin-left: auto;
+  background: var(--panel2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 2px 10px;
+  font-size: 16px;
+  line-height: 1.4;
+}
+
+/* "trades & cards" expander inside the actions panel */
+.more-toggle {
+  display: inline-block;
+  margin: 2px 0 4px;
+}
+
 .board-wrap {
   position: relative;
   background: var(--panel);
@@ -186,6 +205,7 @@ select {
   padding: 10px;
   margin-bottom: 12px;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+  min-height: 380px;
 }
 
 .board-toggles {
@@ -311,24 +331,342 @@ select {
   align-items: start;
 }
 
-/* keep game controls in view while the board / metrics scroll */
-.layout .right {
-  position: sticky;
-  top: 12px;
+/* Desktop only: flatten board-stage so dock can sit in the right column */
+@media (min-width: 981px) {
+  .board-stage {
+    display: contents;
+  }
+
+  .board-stage > .guide-banner,
+  .board-stage > .actor-bar {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .board-stage > .board-wrap {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .board-stage > .board-sheet {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+    z-index: 2;
+  }
+
+  .board-stage > .board-dock {
+    grid-column: 2;
+    grid-row: 1;
+    position: sticky;
+    top: 12px;
+    align-self: start;
+  }
+
+  .side-panels {
+    grid-column: 2;
+    grid-row: 2;
+  }
+
+  .layout > .scrubber {
+    grid-column: 1;
+    grid-row: 3;
+  }
+}
+
+.side-panels {
   max-height: calc(100vh - 24px);
   overflow-y: auto;
   scrollbar-width: thin;
 }
 
+/* Board fills its wrapper; pixel size comes from ResizeObserver in Board.tsx */
+.board-frame {
+  position: relative;
+  width: 100%;
+  min-height: 360px;
+}
+
+.board-frame.placing {
+  touch-action: none;
+}
+
+.board-frame .board {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
 @media (max-width: 980px) {
-  .layout {
-    grid-template-columns: 1fr;
+  .game {
+    padding: 0;
+    --game-hdr: 40px;
   }
 
-  .layout .right {
-    position: static;
+  /* compact header — sticky, minimal chrome */
+  .game header {
+    gap: 6px 10px;
+    padding: 5px 10px;
+    font-size: 12px;
+    margin-bottom: 0;
+    border-radius: 0;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+
+  .nav-toggle {
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .game header .hdr-extra {
+    display: none;
+  }
+
+  .game header.open .hdr-extra {
+    display: inline-flex;
+    align-items: center;
+  }
+
+  /* Single-column: full-viewport board canvas, then meta below */
+  .layout {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .board-stage {
+    display: block;
+    grid-column: auto;
+    grid-row: auto;
+    position: relative;
+    flex: none;
+    gap: 0;
+    width: 100%;
+    height: calc(100vh - var(--game-hdr));
+    height: calc(100svh - var(--game-hdr));
+    height: calc(100dvh - var(--game-hdr));
+    min-height: 280px;
+    overflow: hidden;
+  }
+
+  .board-stage > .guide-banner,
+  .board-stage > .actor-bar {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    right: 8px;
+    z-index: 4;
+    margin: 0;
+    padding: 6px 10px;
+    border-radius: 10px;
+    background: #1a212ce6;
+    backdrop-filter: blur(8px);
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.35);
+  }
+
+  .board-stage > .guide-banner .guide-title {
+    font-size: 13px;
+    line-height: 1.25;
+  }
+
+  .board-stage > .guide-banner .guide-hint {
+    display: none;
+  }
+
+  .board-stage > .actor-bar h3 {
+    display: none;
+  }
+
+  .board-stage > .actor-bar {
+    padding: 6px 8px;
+  }
+
+  .board-stage > .actor-bar .actor-chip {
+    padding: 4px 10px;
+    font-size: 12px;
+  }
+
+  .board-stage > .board-sheet {
+    position: absolute;
+    inset: 0;
+    z-index: 6;
+    display: flex;
+    align-items: flex-end;
+    padding: 8px;
+    background: #0f141b88;
+    backdrop-filter: blur(2px);
+  }
+
+  .board-stage > .board-sheet .discard-panel {
+    width: 100%;
+    max-height: 55%;
+    overflow-y: auto;
+    margin: 0;
+  }
+
+  /* Board area fills the stage; frame gets real pixels via ResizeObserver */
+  .board-stage > .board-wrap {
+    flex: 1 1 auto;
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    margin: 0;
+    padding: 0;
+    border: none;
+    border-radius: 0;
+    background: #0b1018;
+    box-sizing: border-box;
+  }
+
+  .board-stage > .board-wrap .board-frame {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+  }
+
+  .board-stage > .board-wrap .board-toggles {
+    top: auto;
+    bottom: 80px;
+    right: 8px;
+    gap: 4px;
+    padding: 3px 8px;
+    font-size: 10px;
+    z-index: 3;
+  }
+
+  /* Dock overlays the bottom of the board stage */
+  .board-stage > .board-dock {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 5;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px));
+    background: linear-gradient(transparent, #0f141bf0 28%);
+    pointer-events: none;
+  }
+
+  .board-dock > * {
+    pointer-events: auto;
+  }
+
+  .board-dock .panel {
+    margin: 0;
+    padding: 6px 8px;
+    border-radius: 10px;
+    background: #1a212ce6;
+    backdrop-filter: blur(8px);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+  }
+
+  .board-dock .dock-toast {
+    padding: 4px 8px;
+    font-size: 11px;
+    border-radius: 8px;
+    background: #1a212ce6;
+    backdrop-filter: blur(8px);
+    margin: 0;
+  }
+
+  .board-dock .actions h3,
+  .board-dock .actions .row-label,
+  .board-dock .palette h3,
+  .board-dock .palette .muted,
+  /* guide banner already states robber/knight steps */
+  .board-dock .robber-hint {
+    display: none;
+  }
+
+  .board-dock .actions section {
+    padding: 0;
+    border: none;
+  }
+
+  .board-dock .actions .action-row {
+    margin: 0;
+    gap: 4px;
+    flex-wrap: nowrap;
+  }
+
+  .board-dock .actions .mini {
+    width: 40px;
+    padding: 4px;
+    font-size: 12px;
+  }
+
+  .board-dock .actions button {
+    padding: 6px 12px;
+    font-size: 13px;
+    white-space: nowrap;
+  }
+
+  .board-dock .more-toggle {
+    font-size: 11px;
+    padding: 2px 4px;
+  }
+
+  .board-dock .palette-row {
+    gap: 4px;
+    justify-content: center;
+  }
+
+  .board-dock .piece {
+    padding: 6px 8px;
+    gap: 0;
+    min-width: 36px;
+    justify-content: center;
+  }
+
+  .board-dock .piece-icon {
+    width: 18px;
+    height: 18px;
+  }
+
+  /* hide text labels — icons only in the dock */
+  .board-dock .piece {
+    font-size: 0;
+  }
+
+  .board-dock .rb-banner {
+    flex-wrap: wrap;
+    font-size: 12px;
+    gap: 6px;
+  }
+
+  .board-dock .robber-panel {
+    max-height: 38vh;
+    overflow-y: auto;
+  }
+
+  .side-panels,
+  .layout > .scrubber,
+  .game .metrics-grid {
+    padding: 8px 10px;
+  }
+
+  .side-panels,
+  .layout > .scrubber {
     max-height: none;
     overflow: visible;
+  }
+
+  .side-panels .panel {
+    margin-bottom: 8px;
+  }
+
+  /* let the lobby roster editor wrap rather than overflow on small screens */
+  .roster-row {
+    flex-wrap: wrap;
+  }
+
+  .roster-name {
+    flex: 1 1 120px;
   }
 }
 

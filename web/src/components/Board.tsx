@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { playerColor, PORT_FILL, TERRAIN_FILL } from "../colors";
 import { TERRAIN_ICON } from "../icons";
 import type { GameStateDTO, LayoutDTO } from "../types";
@@ -23,7 +23,9 @@ interface Props {
 
 export function Board({ layout, state, showVertexIds, showEdgeIds, showResIcons, actor, tool, dragKind, disabled, onPlace, onRobberHex }: Props) {
   const order = state.player_order;
+  const frameRef = useRef<HTMLDivElement | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
+  const [framePx, setFramePx] = useState({ w: 0, h: 0 });
   const [hover, setHover] = useState<{ kind: Piece; x: number; y: number } | null>(null);
 
   const activeKind: Piece | null = disabled ? null : dragKind ?? tool;
@@ -43,6 +45,43 @@ export function Board({ layout, state, showVertexIds, showEdgeIds, showResIcons,
       h: Math.max(...ys) - minY + PAD * 2,
     };
   }, [layout]);
+
+  // Size the SVG from the container's real pixel dimensions. Percentage /
+  // flex-based SVG sizing is unreliable on mobile browsers.
+  useEffect(() => {
+    const el = frameRef.current;
+    if (!el) return;
+    let raf = 0;
+    const measure = () => {
+      const r = el.getBoundingClientRect();
+      let fw = Math.max(0, Math.floor(r.width));
+      let fh = Math.max(0, Math.floor(r.height));
+      // Before first layout pass, fall back to the parent box so the board
+      // still paints on mobile Safari / Chrome.
+      if ((fw === 0 || fh === 0) && el.parentElement) {
+        const pr = el.parentElement.getBoundingClientRect();
+        if (fw === 0) fw = Math.max(0, Math.floor(pr.width));
+        if (fh === 0) fh = Math.max(0, Math.floor(pr.height));
+      }
+      setFramePx((prev) => (prev.w === fw && prev.h === fh ? prev : { w: fw, h: fh }));
+    };
+    const schedule = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(measure);
+    };
+    schedule();
+    const ro = new ResizeObserver(schedule);
+    ro.observe(el);
+    if (el.parentElement) ro.observe(el.parentElement);
+    window.addEventListener("resize", schedule);
+    window.addEventListener("orientationchange", schedule);
+    return () => {
+      cancelAnimationFrame(raf);
+      ro.disconnect();
+      window.removeEventListener("resize", schedule);
+      window.removeEventListener("orientationchange", schedule);
+    };
+  }, []);
 
   const vpos = (id: number | string) => {
     const p = layout.vertices[String(id)];
@@ -140,6 +179,12 @@ export function Board({ layout, state, showVertexIds, showEdgeIds, showResIcons,
     if (id != null) onPlace(kind, id);
   };
 
+  const pointerPlace = (clientX: number, clientY: number) => {
+    const kind = dragKind ?? tool;
+    if (!kind) return;
+    place(clientX, clientY, kind);
+  };
+
   const handlers = disabled
     ? {}
     : {
@@ -147,6 +192,19 @@ export function Board({ layout, state, showVertexIds, showEdgeIds, showResIcons,
         onMouseLeave: () => setHover(null),
         onClick: (e: React.MouseEvent) => {
           if (tool) place(e.clientX, e.clientY, tool);
+        },
+        onTouchStart: (e: React.TouchEvent) => {
+          const t = e.touches[0];
+          if (t) updateHover(t.clientX, t.clientY, tool);
+        },
+        onTouchMove: (e: React.TouchEvent) => {
+          const t = e.touches[0];
+          if (t) updateHover(t.clientX, t.clientY, tool);
+        },
+        onTouchEnd: (e: React.TouchEvent) => {
+          const t = e.changedTouches[0];
+          if (t) pointerPlace(t.clientX, t.clientY);
+          setHover(null);
         },
         onDragOver: (e: React.DragEvent) => {
           if (!dragKind) return;
@@ -162,142 +220,152 @@ export function Board({ layout, state, showVertexIds, showEdgeIds, showResIcons,
       };
 
   return (
-    <svg
-      ref={svgRef}
-      className={`board ${activeKind ? "placing" : ""}`}
-      viewBox={`${ox} ${oy} ${w} ${h}`}
-      {...handlers}
+    <div
+      ref={frameRef}
+      className={`board-frame ${activeKind ? "placing" : ""}`}
     >
-      {/* hex tiles */}
-      {layout.hexes.map((hx) => {
-        const pts = hx.vertices.map((v) => vpos(v).join(",")).join(" ");
-        const isRobber = robberKey === hx.coord.join(",");
-        const [cx, cy] = [hx.center[0] * S, hx.center[1] * S];
-        const red = hx.number === 6 || hx.number === 8;
-        return (
-          <g key={hx.coord.join(",")}>
-            <polygon points={pts} fill={TERRAIN_FILL[hx.terrain]} stroke="#1b2330" strokeWidth={2} />
-            {showResIcons && (
-              <text x={cx} y={cy - 19} textAnchor="middle" className="hex-ico">
-                {TERRAIN_ICON[hx.terrain]}
-              </text>
-            )}
-            {hx.number != null && (
-              <>
-                <circle cx={cx} cy={cy} r={14} fill="#f5efe0" stroke="#1b2330" />
-                <text x={cx} y={cy + 4} textAnchor="middle" className={red ? "num red" : "num"}>
-                  {hx.number}
-                </text>
-              </>
-            )}
-            {isRobber && <circle cx={cx} cy={cy} r={10} fill="#111" opacity={0.85} />}
-          </g>
-        );
-      })}
+      {framePx.w > 0 && framePx.h > 0 && (
+        <svg
+          ref={svgRef}
+          className={`board ${activeKind ? "placing" : ""}`}
+          viewBox={`${ox} ${oy} ${w} ${h}`}
+          width={framePx.w}
+          height={framePx.h}
+          preserveAspectRatio="xMidYMid meet"
+          {...handlers}
+        >
+          {/* hex tiles */}
+          {layout.hexes.map((hx) => {
+            const pts = hx.vertices.map((v) => vpos(v).join(",")).join(" ");
+            const isRobber = robberKey === hx.coord.join(",");
+            const [cx, cy] = [hx.center[0] * S, hx.center[1] * S];
+            const red = hx.number === 6 || hx.number === 8;
+            return (
+              <g key={hx.coord.join(",")}>
+                <polygon points={pts} fill={TERRAIN_FILL[hx.terrain]} stroke="#1b2330" strokeWidth={2} />
+                {showResIcons && (
+                  <text x={cx} y={cy - 19} textAnchor="middle" className="hex-ico">
+                    {TERRAIN_ICON[hx.terrain]}
+                  </text>
+                )}
+                {hx.number != null && (
+                  <>
+                    <circle cx={cx} cy={cy} r={14} fill="#f5efe0" stroke="#1b2330" />
+                    <text x={cx} y={cy + 4} textAnchor="middle" className={red ? "num red" : "num"}>
+                      {hx.number}
+                    </text>
+                  </>
+                )}
+                {isRobber && <circle cx={cx} cy={cy} r={10} fill="#111" opacity={0.85} />}
+              </g>
+            );
+          })}
 
-      {/* edges: faint base, owned roads, and highlight when placing a road */}
-      {Object.entries(layout.edges).map(([eid, [a, b]]) => {
-        const [x1, y1] = vpos(a);
-        const [x2, y2] = vpos(b);
-        const owner = roadOwner[eid];
-        return (
-          <line key={eid} x1={x1} y1={y1} x2={x2} y2={y2}
-            stroke={owner ? playerColor(owner, order) : "#33415533"}
-            strokeWidth={owner ? 6 : 2} strokeLinecap="round" />
-        );
-      })}
-      {activeKind === "road" &&
-        Object.entries(layout.edges).map(([eid, [a, b]]) =>
-          roadOwner[eid] ? null : (
-            (() => {
+          {/* edges: faint base, owned roads, and highlight when placing a road */}
+          {Object.entries(layout.edges).map(([eid, [a, b]]) => {
+            const [x1, y1] = vpos(a);
+            const [x2, y2] = vpos(b);
+            const owner = roadOwner[eid];
+            return (
+              <line key={eid} x1={x1} y1={y1} x2={x2} y2={y2}
+                stroke={owner ? playerColor(owner, order) : "#33415533"}
+                strokeWidth={owner ? 6 : 2} strokeLinecap="round" />
+            );
+          })}
+          {activeKind === "road" &&
+            Object.entries(layout.edges).map(([eid, [a, b]]) =>
+              roadOwner[eid] ? null : (
+                (() => {
+                  const [x1, y1] = vpos(a);
+                  const [x2, y2] = vpos(b);
+                  return (
+                    <line key={`hl${eid}`} x1={x1} y1={y1} x2={x2} y2={y2}
+                      stroke="#0ea5e9" strokeWidth={5} strokeLinecap="round"
+                      opacity={0.35} className="target" />
+                  );
+                })()
+              ),
+            )}
+
+          {/* ports: offset into the sea with docks pointing to their two vertices */}
+          {layout.ports.map((p, i) => {
+            const [px, py] = [p.pos[0] * S, p.pos[1] * S];
+            const generic = p.type === "generic";
+            return (
+              <g key={i} className="port-mark">
+                <title>{`${p.type} port (${generic ? "3:1 any" : "2:1"})`}</title>
+                {p.vertices.map((v) => {
+                  const [vx, vy] = vpos(v);
+                  return <line key={v} className="port-dock" x1={px} y1={py} x2={vx} y2={vy} />;
+                })}
+                <circle cx={px} cy={py} r={16} fill={PORT_FILL[p.type] ?? "#2f80c7"} stroke="#0b1018" strokeWidth={2} />
+                <text x={px} y={py - 2.5} textAnchor="middle" className="port-res">
+                  {generic ? "3:1" : p.type[0].toUpperCase()}
+                </text>
+                <text x={px} y={py + 8} textAnchor="middle" className="port-ratio">
+                  {generic ? "any" : "2:1"}
+                </text>
+              </g>
+            );
+          })}
+
+          {/* vertices: buildings, ids, and placement targets */}
+          {Object.keys(layout.vertices).map((vid) => {
+            const id = Number(vid);
+            const [x, y] = vpos(id);
+            const sOwner = settlementOwner[id];
+            const cOwner = cityOwner[id];
+            if (cOwner) {
+              return <rect key={vid} x={x - 9} y={y - 9} width={18} height={18}
+                fill={playerColor(cOwner, order)} stroke="#111" strokeWidth={2} rx={2} />;
+            }
+            if (sOwner) {
+              const upgradeTarget = activeKind === "city" && sOwner === actor;
+              return (
+                <circle key={vid} cx={x} cy={y} r={8}
+                  fill={playerColor(sOwner, order)} stroke={upgradeTarget ? "#0ea5e9" : "#111"}
+                  strokeWidth={upgradeTarget ? 3 : 2} className={upgradeTarget ? "target" : ""} />
+              );
+            }
+            const isSettleTarget = activeKind === "settlement";
+            return (
+              <g key={vid}>
+                <circle cx={x} cy={y} r={isSettleTarget ? 7 : 3}
+                  fill={isSettleTarget ? "#0ea5e9" : "#64748b"}
+                  opacity={isSettleTarget ? 0.4 : 1}
+                  className={isSettleTarget ? "target" : ""} />
+                {showVertexLabels && <text x={x} y={y - 6} textAnchor="middle" className="vid">{vid}</text>}
+              </g>
+            );
+          })}
+
+          {/* edge ids */}
+          {showEdgeLabels &&
+            Object.entries(layout.edges).map(([eid, [a, b]]) => {
               const [x1, y1] = vpos(a);
               const [x2, y2] = vpos(b);
               return (
-                <line key={`hl${eid}`} x1={x1} y1={y1} x2={x2} y2={y2}
-                  stroke="#0ea5e9" strokeWidth={5} strokeLinecap="round"
-                  opacity={0.35} className="target" />
+                <text key={`e${eid}`} x={(x1 + x2) / 2} y={(y1 + y2) / 2} textAnchor="middle" className="eid">
+                  {eid}
+                </text>
               );
-            })()
-          ),
-        )}
-
-      {/* ports: offset into the sea with docks pointing to their two vertices */}
-      {layout.ports.map((p, i) => {
-        const [px, py] = [p.pos[0] * S, p.pos[1] * S];
-        const generic = p.type === "generic";
-        return (
-          <g key={i} className="port-mark">
-            <title>{`${p.type} port (${generic ? "3:1 any" : "2:1"})`}</title>
-            {p.vertices.map((v) => {
-              const [vx, vy] = vpos(v);
-              return <line key={v} className="port-dock" x1={px} y1={py} x2={vx} y2={vy} />;
             })}
-            <circle cx={px} cy={py} r={16} fill={PORT_FILL[p.type] ?? "#2f80c7"} stroke="#0b1018" strokeWidth={2} />
-            <text x={px} y={py - 2.5} textAnchor="middle" className="port-res">
-              {generic ? "3:1" : p.type[0].toUpperCase()}
-            </text>
-            <text x={px} y={py + 8} textAnchor="middle" className="port-ratio">
-              {generic ? "any" : "2:1"}
-            </text>
-          </g>
-        );
-      })}
 
-      {/* vertices: buildings, ids, and placement targets */}
-      {Object.keys(layout.vertices).map((vid) => {
-        const id = Number(vid);
-        const [x, y] = vpos(id);
-        const sOwner = settlementOwner[id];
-        const cOwner = cityOwner[id];
-        if (cOwner) {
-          return <rect key={vid} x={x - 9} y={y - 9} width={18} height={18}
-            fill={playerColor(cOwner, order)} stroke="#111" strokeWidth={2} rx={2} />;
-        }
-        if (sOwner) {
-          const upgradeTarget = activeKind === "city" && sOwner === actor;
-          return (
-            <circle key={vid} cx={x} cy={y} r={8}
-              fill={playerColor(sOwner, order)} stroke={upgradeTarget ? "#0ea5e9" : "#111"}
-              strokeWidth={upgradeTarget ? 3 : 2} className={upgradeTarget ? "target" : ""} />
-          );
-        }
-        const isSettleTarget = activeKind === "settlement";
-        return (
-          <g key={vid}>
-            <circle cx={x} cy={y} r={isSettleTarget ? 7 : 3}
-              fill={isSettleTarget ? "#0ea5e9" : "#64748b"}
-              opacity={isSettleTarget ? 0.4 : 1}
-              className={isSettleTarget ? "target" : ""} />
-            {showVertexLabels && <text x={x} y={y - 6} textAnchor="middle" className="vid">{vid}</text>}
-          </g>
-        );
-      })}
-
-      {/* edge ids */}
-      {showEdgeLabels &&
-        Object.entries(layout.edges).map(([eid, [a, b]]) => {
-          const [x1, y1] = vpos(a);
-          const [x2, y2] = vpos(b);
-          return (
-            <text key={`e${eid}`} x={(x1 + x2) / 2} y={(y1 + y2) / 2} textAnchor="middle" className="eid">
-              {eid}
-            </text>
-          );
-        })}
-
-      {/* hover preview (colored for the acting player) */}
-      {hover && hover.kind === "settlement" && (
-        <circle cx={hover.x} cy={hover.y} r={8} fill={actorColor} opacity={0.6} stroke="#fff" strokeDasharray="2 2" />
+          {/* hover preview (colored for the acting player) */}
+          {hover && hover.kind === "settlement" && (
+            <circle cx={hover.x} cy={hover.y} r={8} fill={actorColor} opacity={0.6} stroke="#fff" strokeDasharray="2 2" />
+          )}
+          {hover && hover.kind === "city" && (
+            <rect x={hover.x - 9} y={hover.y - 9} width={18} height={18} rx={2} fill={actorColor} opacity={0.6} stroke="#fff" strokeDasharray="2 2" />
+          )}
+          {hover && hover.kind === "road" && (
+            <circle cx={hover.x} cy={hover.y} r={7} fill={actorColor} opacity={0.6} stroke="#fff" strokeDasharray="2 2" />
+          )}
+          {hover && hover.kind === "robber" && (
+            <circle cx={hover.x} cy={hover.y} r={12} fill="#111" opacity={0.55} stroke="#0ea5e9" strokeWidth={2} strokeDasharray="3 2" />
+          )}
+        </svg>
       )}
-      {hover && hover.kind === "city" && (
-        <rect x={hover.x - 9} y={hover.y - 9} width={18} height={18} rx={2} fill={actorColor} opacity={0.6} stroke="#fff" strokeDasharray="2 2" />
-      )}
-      {hover && hover.kind === "road" && (
-        <circle cx={hover.x} cy={hover.y} r={7} fill={actorColor} opacity={0.6} stroke="#fff" strokeDasharray="2 2" />
-      )}
-      {hover && hover.kind === "robber" && (
-        <circle cx={hover.x} cy={hover.y} r={12} fill="#111" opacity={0.55} stroke="#0ea5e9" strokeWidth={2} strokeDasharray="3 2" />
-      )}
-    </svg>
+    </div>
   );
 }
