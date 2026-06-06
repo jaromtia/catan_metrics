@@ -8,6 +8,92 @@ type Res = (typeof RES)[number];
 
 type Apply = (cmd: Record<string, unknown>) => Promise<{ events: string[] }>;
 
+function clampDie(v: number) {
+  return ((v - 1 + 6) % 6) + 1;
+}
+
+function DiePicker({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: number;
+  onChange: (v: number) => void;
+  disabled: boolean;
+}) {
+  return (
+    <div className="die-picker">
+      <button
+        type="button"
+        className="die-btn"
+        disabled={disabled}
+        aria-label="Lower die"
+        onClick={() => onChange(clampDie(value - 1))}
+      >
+        −
+      </button>
+      <button
+        type="button"
+        className="die-face"
+        disabled={disabled}
+        aria-label={`Die ${value}, tap to raise`}
+        onClick={() => onChange(clampDie(value + 1))}
+      >
+        {value}
+      </button>
+      <button
+        type="button"
+        className="die-btn"
+        disabled={disabled}
+        aria-label="Raise die"
+        onClick={() => onChange(clampDie(value + 1))}
+      >
+        +
+      </button>
+    </div>
+  );
+}
+
+function ResStepper({
+  value,
+  onChange,
+  disabled,
+  min = 0,
+  max,
+}: {
+  value: number;
+  onChange: (v: number) => void;
+  disabled: boolean;
+  min?: number;
+  max?: number;
+}) {
+  const atMin = value <= min;
+  const atMax = max !== undefined && value >= max;
+  return (
+    <div className="res-picker">
+      <button
+        type="button"
+        className="res-btn"
+        disabled={disabled || atMin}
+        aria-label="Less"
+        onClick={() => onChange(value - 1)}
+      >
+        −
+      </button>
+      <span className="res-val">{value}</span>
+      <button
+        type="button"
+        className="res-btn"
+        disabled={disabled || atMax}
+        aria-label="More"
+        onClick={() => onChange(value + 1)}
+      >
+        +
+      </button>
+    </div>
+  );
+}
+
 /** Best maritime ratio for `give`, from ports the current player occupies. */
 function bestRatio(state: GameStateDTO, player: string, give: Res): number {
   const p = state.players[player];
@@ -127,12 +213,28 @@ export function ActionsPanel({
         <div className="row-label">Turn</div>
         <div className="action-row">
           {showRoll && (
-            <>
-              <span>🎲</span>
-              <input type="number" min={1} max={6} value={d1} onChange={(e) => setD1(+e.target.value)} className="mini" />
-              <input type="number" min={1} max={6} value={d2} onChange={(e) => setD2(+e.target.value)} className="mini" />
-              <button disabled={dis} onClick={() => run({ type: "RollDice", player: me, die1: d1, die2: d2 }, `roll ${d1}+${d2}`)}>Roll</button>
-            </>
+            variant === "roll" ? (
+              <div className="dice-roll">
+                <DiePicker value={d1} onChange={setD1} disabled={dis} />
+                <span className="dice-op">+</span>
+                <DiePicker value={d2} onChange={setD2} disabled={dis} />
+                <span className="dice-sum">={d1 + d2}</span>
+                <button
+                  className="dice-roll-btn"
+                  disabled={dis}
+                  onClick={() => run({ type: "RollDice", player: me, die1: d1, die2: d2 }, `roll ${d1}+${d2}`)}
+                >
+                  Roll
+                </button>
+              </div>
+            ) : (
+              <>
+                <span>🎲</span>
+                <DiePicker value={d1} onChange={setD1} disabled={dis} />
+                <DiePicker value={d2} onChange={setD2} disabled={dis} />
+                <button disabled={dis} onClick={() => run({ type: "RollDice", player: me, die1: d1, die2: d2 }, `roll ${d1}+${d2}`)}>Roll</button>
+              </>
+            )
           )}
           {showEnd && (
             <button disabled={dis} onClick={() => run({ type: "EndTurn", player: me }, "end turn")}>End turn</button>
@@ -141,21 +243,26 @@ export function ActionsPanel({
       </section>
 
       {showTrades && (
-        <button type="button" className="link more-toggle" onClick={() => setShowMore((s) => !s)}>
-          {showMore ? "▾ hide trades & cards" : "▸ trades & cards"}
+        <button type="button" className="more-toggle" onClick={() => setShowMore((s) => !s)}>
+          {showMore ? "▾ Hide trades & cards" : "▸ Trades & development cards"}
         </button>
       )}
 
       {showTrades && showMore && <section>
         <div className="row-label">Bank / port trade</div>
-        <div className="action-row">
+        <div className="action-row bank-trade">
           give
-          <input type="number" value={bGiveAmt} readOnly className="mini" title={`${ratio}:1`} />
+          <span className="res-val readonly" title={`${ratio}:1`}>{bGiveAmt}</span>
           <select value={bGive} onChange={(e) => setBGive(e.target.value as Res)}>
             {bankGiveOptions}
           </select>
           → get
-          <input type="number" min={1} value={bRecvAmt} onChange={(e) => setBRecvAmt(Math.max(1, +e.target.value))} className="mini" />
+          <ResStepper
+            value={bRecvAmt}
+            min={1}
+            disabled={dis}
+            onChange={(v) => setBRecvAmt(Math.max(1, v))}
+          />
           <select value={bRecv} onChange={(e) => setBRecv(e.target.value as Res)}>
             {resOptions}
           </select>
@@ -192,11 +299,14 @@ export function ActionsPanel({
               const off = enforce && owned === 0;
               const cap = (v: number) => (enforce ? Math.min(owned, v) : v);
               return (
-                <label key={r} className={`res-step ${off ? "off" : ""}`}><ResIcon r={r} />
-                  <input
-                    type="number" min={0} max={enforce ? owned : undefined}
-                    disabled={off} value={give[r]} className="mini"
-                    onChange={(e) => setGive({ ...give, [r]: cap(Math.max(0, +e.target.value)) })}
+                <label key={r} className={`res-step ${off ? "off" : ""}`}>
+                  <ResIcon r={r} />
+                  <ResStepper
+                    value={give[r]}
+                    min={0}
+                    max={enforce ? owned : undefined}
+                    disabled={dis || off}
+                    onChange={(v) => setGive({ ...give, [r]: cap(Math.max(0, v)) })}
                   />
                 </label>
               );
@@ -209,11 +319,14 @@ export function ActionsPanel({
               const off = enforce && owned === 0;
               const cap = (v: number) => (enforce ? Math.min(owned, v) : v);
               return (
-                <label key={r} className={`res-step ${off ? "off" : ""}`}><ResIcon r={r} />
-                  <input
-                    type="number" min={0} max={enforce ? owned : undefined}
-                    disabled={off} value={recv[r]} className="mini"
-                    onChange={(e) => setRecv({ ...recv, [r]: cap(Math.max(0, +e.target.value)) })}
+                <label key={r} className={`res-step ${off ? "off" : ""}`}>
+                  <ResIcon r={r} />
+                  <ResStepper
+                    value={recv[r]}
+                    min={0}
+                    max={enforce ? owned : undefined}
+                    disabled={dis || off}
+                    onChange={(v) => setRecv({ ...recv, [r]: cap(Math.max(0, v)) })}
                   />
                 </label>
               );

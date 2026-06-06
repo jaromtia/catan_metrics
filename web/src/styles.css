@@ -193,8 +193,25 @@ select {
 
 /* "trades & cards" expander inside the actions panel */
 .more-toggle {
-  display: inline-block;
-  margin: 2px 0 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  margin: 8px 0 6px;
+  padding: 10px 14px;
+  background: var(--panel2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  touch-action: manipulation;
+}
+
+.more-toggle:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: #0ea5e914;
 }
 
 .board-wrap {
@@ -205,7 +222,7 @@ select {
   padding: 10px;
   margin-bottom: 12px;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
-  min-height: 380px;
+  min-height: 0;
 }
 
 .board-toggles {
@@ -333,6 +350,10 @@ select {
 
 /* Desktop only: flatten board-stage so dock can sit in the right column */
 @media (min-width: 981px) {
+  .layout {
+    grid-template-rows: auto auto auto;
+  }
+
   .board-stage {
     display: contents;
   }
@@ -346,6 +367,8 @@ select {
   .board-stage > .board-wrap {
     grid-column: 1;
     grid-row: 2;
+    min-height: 0;
+    height: fit-content;
   }
 
   .board-stage > .board-sheet {
@@ -354,17 +377,28 @@ select {
     z-index: 2;
   }
 
+  /* Span the board rows so a tall actions panel doesn't push the board down. */
   .board-stage > .board-dock {
     grid-column: 2;
-    grid-row: 1;
-    position: sticky;
-    top: 12px;
+    grid-row: 1 / 3;
     align-self: start;
+    width: 100%;
+    overflow: visible;
+  }
+
+  /* Only scroll when trades/cards expand — not for short hints like robber-hint */
+  .board-stage > .board-dock .panel.actions {
+    height: 500px;
+    max-height: min(48vh, 500px);
+    overflow-y: auto;
+    scrollbar-width: thin;
   }
 
   .side-panels {
     grid-column: 2;
-    grid-row: 2;
+    grid-row: 3;
+    max-height: none;
+    overflow-y: visible;
   }
 
   .layout > .scrubber {
@@ -379,11 +413,12 @@ select {
   scrollbar-width: thin;
 }
 
-/* Board fills its wrapper; pixel size comes from ResizeObserver in Board.tsx */
+/* Board frame: height follows board aspect ratio via --board-ar from Board.tsx */
 .board-frame {
   position: relative;
   width: 100%;
-  min-height: 360px;
+  aspect-ratio: var(--board-ar);
+  min-height: 0;
 }
 
 .board-frame.placing {
@@ -435,30 +470,30 @@ select {
     gap: 0;
   }
 
+  /* Flex column: guide | board (grows) | dock — nothing overlaps the map */
   .board-stage {
-    display: block;
-    grid-column: auto;
-    grid-row: auto;
+    display: flex;
+    flex-direction: column;
     position: relative;
     flex: none;
-    gap: 0;
     width: 100%;
     height: calc(100vh - var(--game-hdr));
     height: calc(100svh - var(--game-hdr));
     height: calc(100dvh - var(--game-hdr));
-    min-height: 280px;
+    min-height: 0;
     overflow: hidden;
   }
 
   .board-stage > .guide-banner,
   .board-stage > .actor-bar {
-    position: absolute;
-    top: 8px;
-    left: 8px;
-    right: 8px;
+    position: relative;
+    top: auto;
+    left: auto;
+    right: auto;
+    flex: 0 0 auto;
     z-index: 4;
-    margin: 0;
-    padding: 6px 10px;
+    margin: 4px 8px 0;
+    padding: 5px 10px;
     border-radius: 10px;
     background: #1a212ce6;
     backdrop-filter: blur(8px);
@@ -505,18 +540,20 @@ select {
     margin: 0;
   }
 
-  /* Board area fills the stage; frame gets real pixels via ResizeObserver */
+  /* Board takes all space between guide and dock; SVG letterboxes inside */
   .board-stage > .board-wrap {
-    flex: 1 1 auto;
-    position: absolute;
-    inset: 0;
+    position: relative;
+    flex: 1 1 0;
+    min-height: 0;
     z-index: 1;
+    width: 100%;
     margin: 0;
     padding: 0;
     border: none;
     border-radius: 0;
     background: #0b1018;
     box-sizing: border-box;
+    overflow: hidden;
   }
 
   .board-stage > .board-wrap .board-frame {
@@ -524,32 +561,39 @@ select {
     inset: 0;
     width: 100%;
     height: 100%;
-    min-height: 0;
+    max-width: 100%;
+    max-height: 100%;
+    aspect-ratio: unset;
+    margin: 0;
   }
 
   .board-stage > .board-wrap .board-toggles {
     top: auto;
-    bottom: 80px;
-    right: 8px;
+    bottom: 6px;
+    right: 6px;
     gap: 4px;
     padding: 3px 8px;
     font-size: 10px;
     z-index: 3;
   }
 
-  /* Dock overlays the bottom of the board stage */
+  /* Single compact toolbar — palette + actions on one row */
   .board-stage > .board-dock {
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: 0;
+    position: relative;
+    flex: 0 0 auto;
     z-index: 5;
     display: flex;
-    flex-direction: column;
-    gap: 4px;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
     padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px));
-    background: linear-gradient(transparent, #0f141bf0 28%);
-    pointer-events: none;
+    background: #1a212cf2;
+    border-top: 1px solid var(--border);
+    pointer-events: auto;
+    max-height: min(40vh, 260px);
+    overflow-y: auto;
+    scrollbar-width: thin;
   }
 
   .board-dock > * {
@@ -558,11 +602,30 @@ select {
 
   .board-dock .panel {
     margin: 0;
-    padding: 6px 8px;
-    border-radius: 10px;
-    background: #1a212ce6;
-    backdrop-filter: blur(8px);
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+    padding: 0;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .board-dock .palette,
+  .board-dock .actions {
+    display: flex;
+    align-items: center;
+  }
+
+  .board-dock .palette {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .board-dock .actions {
+    flex: 0 0 auto;
+  }
+
+  .board-dock .palette-row {
+    flex-wrap: nowrap;
   }
 
   .board-dock .dock-toast {
@@ -594,6 +657,25 @@ select {
     flex-wrap: nowrap;
   }
 
+  .board-dock .dice-roll {
+    gap: 6px;
+  }
+
+  .board-dock .die-btn,
+  .board-dock .die-face {
+    min-width: 42px;
+    min-height: 42px;
+  }
+
+  .board-dock .die-face {
+    min-width: 44px;
+    font-size: 20px;
+  }
+
+  .board-dock .dice-sum {
+    font-size: 18px;
+  }
+
   .board-dock .actions .mini {
     width: 40px;
     padding: 4px;
@@ -607,8 +689,22 @@ select {
   }
 
   .board-dock .more-toggle {
+    flex: 0 0 100%;
     font-size: 11px;
-    padding: 2px 4px;
+    padding: 4px 6px;
+    margin: 0;
+    text-align: left;
+  }
+
+  .board-dock .actions .more-toggle {
+    flex: 0 0 auto;
+    margin-left: auto;
+  }
+
+  .board-dock .res-btn,
+  .board-dock .res-val {
+    min-width: 40px;
+    min-height: 40px;
   }
 
   .board-dock .palette-row {
@@ -672,7 +768,7 @@ select {
 
 .board {
   width: 100%;
-  height: auto;
+  height: 100%;
   background: #0b1018;
   border-radius: 10px;
   border: 1px solid var(--border);
@@ -792,6 +888,120 @@ select {
   width: 52px;
 }
 
+/* dice roll steppers — large touch targets instead of number inputs */
+.dice-roll {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  flex-wrap: nowrap;
+}
+
+.die-picker {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.die-btn,
+.die-face {
+  touch-action: manipulation;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.die-btn {
+  background: var(--panel2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  font-size: 24px;
+}
+
+.die-face {
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--accent);
+  font-size: 22px;
+  min-width: 48px;
+}
+
+.die-btn:disabled,
+.die-face:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.dice-op {
+  color: var(--muted);
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.dice-sum {
+  font-size: 20px;
+  font-weight: 700;
+  min-width: 2.5ch;
+}
+
+.dice-roll-btn {
+  margin-left: auto;
+  min-height: 44px;
+  padding: 8px 16px;
+}
+
+/* resource amount steppers (trades, discards) */
+.res-picker {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.res-btn,
+.res-val {
+  touch-action: manipulation;
+  min-width: 36px;
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.res-btn {
+  background: var(--panel2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  font-size: 20px;
+  padding: 0;
+}
+
+.res-val {
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  font-size: 15px;
+  min-width: 32px;
+}
+
+.res-val.readonly {
+  border-style: dashed;
+  color: var(--muted);
+}
+
+.res-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
 .actions select {
   font-size: 13px;
 }
@@ -841,21 +1051,13 @@ select {
 .res-step {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   font-size: 12px;
-  margin: 2px 0;
-}
-
-.res-step .mini {
-  width: 48px;
+  margin: 4px 0;
 }
 
 .res-step.off {
   opacity: 0.35;
-}
-
-.res-step.off input {
-  cursor: not-allowed;
 }
 
 /* robber panel */
@@ -946,9 +1148,18 @@ select {
   color: var(--text);
 }
 
+.piece.unaffordable {
+  opacity: 0.35;
+  filter: grayscale(0.85);
+}
+
 .piece:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+
+.piece.unaffordable:disabled {
+  opacity: 0.35;
 }
 
 .piece-icon {

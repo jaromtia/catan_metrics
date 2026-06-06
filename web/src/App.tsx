@@ -7,6 +7,7 @@ import {
   saveGameColors,
   setColorOverrides,
 } from "./colors";
+import { canAffordBuild } from "./costs";
 import { expectedActor, guidedStep } from "./guide";
 import { ActionsPanel } from "./components/ActionsPanel";
 import { AdminPanel } from "./components/AdminPanel";
@@ -297,6 +298,16 @@ function GameView({ gameId, onExit }: { gameId: string; onExit: () => void }) {
     else if (step.pieces.length === 0) setTool(null);
   }, [state, live]);
 
+  // Drop a selected build piece when the player can no longer afford it.
+  useEffect(() => {
+    if (!state || !live || state.mode === "dev" || state.phase === "setup" || !tool || tool === "robber") return;
+    const actor = guidedStep(state).player ?? state.player_order[state.current_index];
+    const p = state.players[actor];
+    if (!p) return;
+    const built = { settlements: p.settlements.length, cities: p.cities.length, roads: p.roads.length };
+    if (!canAffordBuild(p.resources, tool, built)) setTool(null);
+  }, [state, live, tool]);
+
   useEffect(() => {
     setColorOverrides(loadGameColors(gameId));
     api.getLayout(gameId).then(setLayout).catch(() => { });
@@ -325,6 +336,20 @@ function GameView({ gameId, onExit }: { gameId: string; onExit: () => void }) {
   const step = guidedStep(state);
   const effActor = guided ? (step.player ?? expected ?? current) : (actor ?? expected ?? current);
   const allowedPieces = guided ? step.pieces : undefined;
+  const buildAffordability =
+    guided && state.phase !== "setup"
+      ? (() => {
+          const p = state.players[effActor];
+          if (!p) return undefined;
+          const built = { settlements: p.settlements.length, cities: p.cities.length, roads: p.roads.length };
+          return {
+            settlement: canAffordBuild(p.resources, "settlement", built),
+            city: canAffordBuild(p.resources, "city", built),
+            road: canAffordBuild(p.resources, "road", built),
+            robber: true,
+          };
+        })()
+      : undefined;
   const hasDiscards = Object.keys(state.pending_discards).length > 0;
   const showPalette = live && !robberTarget && (!guided || (allowedPieces?.length ?? 0) > 0);
   const bannerColor = playerColor(step.player ?? current, state.player_order);
@@ -495,7 +520,7 @@ function GameView({ gameId, onExit }: { gameId: string; onExit: () => void }) {
               </div>
             )}
             {showPalette && (
-              <Palette tool={tool} setTool={setTool} setDragKind={setDragKind} disabled={!live} allowed={allowedPieces} />
+              <Palette tool={tool} setTool={setTool} setDragKind={setDragKind} disabled={!live} allowed={allowedPieces} canBuild={buildAffordability} />
             )}
             {live && robberTarget ? (
               <RobberPanel
