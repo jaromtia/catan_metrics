@@ -3,26 +3,55 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    container_name: catan-api
     environment:
-      # Event-sourced SQLite log lives on the named volume below.
       CATAN_DB: /data/catan.db
     volumes:
       - catan-data:/data
-    # Exposed for direct API access / debugging; the web service proxies to it
-    # internally over the compose network regardless.
+    # Only expose on localhost for direct debugging; web proxies /api internally
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
+    networks:
+      - internal
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/api/games')\" 2>/dev/null || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
 
   web:
     build:
       context: ./web
       dockerfile: Dockerfile
+    container_name: catan-web
     depends_on:
       - api
+    # Expose on localhost for direct access/debugging
     ports:
-      - "8080:80"
+      - "127.0.0.1:8090:80"
+    networks:
+      - internal
+      - frontend
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:80/ >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
 
 volumes:
   catan-data:
+    name: catan-data
+
+networks:
+  # Internal network: api <-> web communication
+  internal:
+    driver: bridge
+
+  # Join the existing cloudflare tunnel network so cloudflared can reach catan-web
+  frontend:
+    external: true
+    name: ai_network_advanced
