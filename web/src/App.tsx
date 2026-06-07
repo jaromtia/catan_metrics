@@ -31,9 +31,34 @@ import type {
 
 interface Roster { players: string[]; colors: Record<string, string>; mode: string }
 
+/** Pull a game id out of either a bare code or a pasted invite link. */
+function parseGameCode(input: string): string | null {
+  const trimmed = input.trim();
+  if (!trimmed) return null;
+  try {
+    const fromLink = new URL(trimmed, window.location.origin).searchParams.get("game");
+    if (fromLink) return fromLink;
+  } catch {
+    /* not a URL — treat the input as a bare code below */
+  }
+  return trimmed;
+}
+
 export default function App() {
   const [gameId, setGameId] = useState<string | null>(null);
   const [design, setDesign] = useState<Roster | null>(null);
+  const [joinError, setJoinError] = useState<string | null>(null);
+
+  // A shared invite link looks like .../?game=<id>: open it directly, skipping
+  // the lobby, so following someone's link drops you straight into their game.
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get("game");
+    if (!id) return;
+    history.replaceState(null, "", window.location.pathname);
+    api.getState(id)
+      .then(() => setGameId(id))
+      .catch(() => setJoinError(`Invite link points to an unknown game (${id.slice(0, 8)}…).`));
+  }, []);
 
   if (gameId) return <GameView gameId={gameId} onExit={() => setGameId(null)} />;
   if (design)
@@ -49,7 +74,7 @@ export default function App() {
         }}
       />
     );
-  return <Lobby onOpen={setGameId} onDesign={setDesign} />;
+  return <Lobby onOpen={setGameId} onDesign={setDesign} joinError={joinError} />;
 }
 
 interface PlayerSlot { name: string; color: string }
@@ -63,9 +88,11 @@ const DEFAULT_ROSTER: PlayerSlot[] = [
 function Lobby({
   onOpen,
   onDesign,
+  joinError,
 }: {
   onOpen: (id: string) => void;
   onDesign: (r: Roster) => void;
+  joinError?: string | null;
 }) {
   const [games, setGames] = useState<GameSummary[]>([]);
   const [roster, setRoster] = useState<PlayerSlot[]>(DEFAULT_ROSTER);
@@ -73,6 +100,30 @@ function Lobby({
   const [seed, setSeed] = useState("");
   const [mode, setMode] = useState("strict");
   const [err, setErr] = useState<string | null>(null);
+  const [joinCode, setJoinCode] = useState("");
+  const [joinErr, setJoinErr] = useState<string | null>(joinError ?? null);
+  const [joining, setJoining] = useState(false);
+
+  // The lobby can mount before App's invite-link check resolves; pick up a
+  // late-arriving error from a bad `?game=` link once it lands.
+  useEffect(() => {
+    if (joinError) setJoinErr(joinError);
+  }, [joinError]);
+
+  async function joinGame() {
+    const id = parseGameCode(joinCode);
+    if (!id) return setJoinErr("paste an invite link or game code");
+    setJoinErr(null);
+    setJoining(true);
+    try {
+      await api.getState(id); // validate it exists before switching screens
+      onOpen(id);
+    } catch {
+      setJoinErr("no game found with that code — double-check the link");
+    } finally {
+      setJoining(false);
+    }
+  }
 
   const refresh = useCallback(() => {
     api.listGames().then(setGames).catch(() => setGames([]));
@@ -185,8 +236,24 @@ function Lobby({
         {err && <div className="msg err">{err}</div>}
       </div>
       <div className="panel">
-        <h3>Games</h3>
-        {games.length === 0 && <p className="muted">No games yet.</p>}
+        <h3>Join a game</h3>
+        <p className="muted small">
+          Got an invite link or code from someone else? Paste it here to play together.
+        </p>
+        <div className="join-row">
+          <input
+            value={joinCode}
+            onChange={(e) => { setJoinCode(e.target.value); setJoinErr(null); }}
+            onKeyDown={(e) => { if (e.key === "Enter") joinGame(); }}
+            placeholder="invite link or game code"
+          />
+          <button onClick={joinGame} disabled={joining}>{joining ? "Joining…" : "Join"}</button>
+        </div>
+        {joinErr && <div className="msg err">{joinErr}</div>}
+      </div>
+      <div className="panel">
+        <h3>My games</h3>
+        {games.length === 0 && <p className="muted">No games yet — only games you create show up here.</p>}
         {games.map((g) => (
           <div key={g.game_id} className="game-row">
             <div className="game-open" onClick={() => onOpen(g.game_id)}>
@@ -230,7 +297,20 @@ function GameView({ gameId, onExit }: { gameId: string; onExit: () => void }) {
   const [robberTarget, setRobberTarget] = useState<number[] | null>(null);
   const [rbEdges, setRbEdges] = useState<number[] | null>(null); // Road Building picks
   const [navOpen, setNavOpen] = useState(false); // mobile: expand collapsed header
+  const [copied, setCopied] = useState(false);
   const live = viewSeq === null;
+
+  const copyInvite = useCallback(async () => {
+    const link = `${location.origin}${location.pathname}?game=${gameId}`;
+    try {
+      await navigator.clipboard.writeText(link);
+    } catch {
+      window.prompt("Copy this invite link:", link);
+      return;
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }, [gameId]);
 
   const refreshDerived = useCallback(() => {
     api.getEvents(gameId).then(setEvents).catch(() => { });
@@ -432,6 +512,9 @@ function GameView({ gameId, onExit }: { gameId: string; onExit: () => void }) {
     <div className="game">
       <header className={navOpen ? "open" : ""}>
         <button className="link" onClick={onExit}>← games</button>
+        <button className="link" onClick={copyInvite} title="Copy a link others can open to join this game live">
+          {copied ? "link copied ✓" : "🔗 invite"}
+        </button>
         <span>current: <b>{current}</b></span>
         {state.dice && <span>🎲 {state.dice[0]}+{state.dice[1]}={state.dice[0] + state.dice[1]}</span>}
         {state.robber_pending && <span className="warn">move robber</span>}

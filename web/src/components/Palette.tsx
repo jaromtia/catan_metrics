@@ -55,6 +55,8 @@ export function Palette({ tool, setTool, setDragKind, disabled, allowed, canBuil
             className={`piece ${tool === p.kind ? "active" : ""} ${unaffordable ? "unaffordable" : ""}`}
             disabled={disabled || unaffordable}
             draggable={!disabled}
+            aria-label={p.label}
+            aria-pressed={tool === p.kind}
             onClick={() => setTool(tool === p.kind ? null : p.kind)}
             onDragStart={(e) => {
               setDragKind(p.kind);
@@ -65,8 +67,8 @@ export function Palette({ tool, setTool, setDragKind, disabled, allowed, canBuil
             onDragEnd={() => setDragKind(null)}
             title={unaffordable ? `Not enough resources for a ${p.label.toLowerCase()}` : `Drag onto the board, or click to select then click a spot`}
           >
-            <svg viewBox="0 0 24 24" className="piece-icon">{p.glyph}</svg>
-            {p.label}
+            <svg viewBox="0 0 24 24" className="piece-icon" aria-hidden="true">{p.glyph}</svg>
+            <span className="piece-label">{p.label}</span>
           </button>
         );
         })}

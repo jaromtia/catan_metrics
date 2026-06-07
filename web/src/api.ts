@@ -1,3 +1,4 @@
+import { getClientId } from "./session";
 import type {
   BoardTemplateDTO,
   CustomLayout,
@@ -7,6 +8,15 @@ import type {
   LayoutDTO,
   MetricsDTO,
 } from "./types";
+
+/** fetch wrapper that tags every request with this browser's client id, so
+ * the server can scope the lobby to "my games" (see session.ts). */
+function call(url: string, init: RequestInit = {}): Promise<Response> {
+  return fetch(url, {
+    ...init,
+    headers: { "X-Catan-Client": getClientId(), ...(init.headers || {}) },
+  });
+}
 
 async function json<T>(res: Response): Promise<T> {
   if (!res.ok) {
@@ -28,7 +38,7 @@ export class ApiError extends Error {
 }
 
 export const api = {
-  listGames: () => fetch("/api/games").then(json<GameSummary[]>),
+  listGames: () => call("/api/games").then(json<GameSummary[]>),
 
   createGame: (
     players: string[],
@@ -37,43 +47,43 @@ export const api = {
     layout?: CustomLayout,
     mode: string = "strict",
   ) =>
-    fetch("/api/games", {
+    call("/api/games", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ players, board, seed, layout, mode }),
     }).then(json<{ game_id: string; mode: string; state: GameStateDTO }>),
 
   setMode: (id: string, mode: string) =>
-    fetch(`/api/games/${id}/mode`, {
+    call(`/api/games/${id}/mode`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ mode }),
     }).then(json<{ ok: boolean; mode: string }>),
 
   getBoardTemplate: () =>
-    fetch("/api/board_template").then(json<BoardTemplateDTO>),
+    call("/api/board_template").then(json<BoardTemplateDTO>),
 
   getState: (id: string, at?: number) =>
-    fetch(`/api/games/${id}/state${at != null ? `?at=${at}` : ""}`).then(json<GameStateDTO>),
+    call(`/api/games/${id}/state${at != null ? `?at=${at}` : ""}`).then(json<GameStateDTO>),
 
-  getLayout: (id: string) => fetch(`/api/games/${id}/layout`).then(json<LayoutDTO>),
+  getLayout: (id: string) => call(`/api/games/${id}/layout`).then(json<LayoutDTO>),
 
-  getEvents: (id: string) => fetch(`/api/games/${id}/events`).then(json<EventDTO[]>),
+  getEvents: (id: string) => call(`/api/games/${id}/events`).then(json<EventDTO[]>),
 
-  getMetrics: (id: string) => fetch(`/api/games/${id}/metrics`).then(json<MetricsDTO>),
+  getMetrics: (id: string) => call(`/api/games/${id}/metrics`).then(json<MetricsDTO>),
 
   deleteGame: (id: string) =>
-    fetch(`/api/games/${id}`, { method: "DELETE" }).then(json<{ ok: boolean }>),
+    call(`/api/games/${id}`, { method: "DELETE" }).then(json<{ ok: boolean }>),
 
   sendCommandText: (id: string, line: string) =>
-    fetch(`/api/games/${id}/command_text`, {
+    call(`/api/games/${id}/command_text`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ line }),
     }).then(json<{ ok: boolean; events: string[]; state: GameStateDTO }>),
 
   sendCommand: (id: string, command: Record<string, unknown>) =>
-    fetch(`/api/games/${id}/commands`, {
+    call(`/api/games/${id}/commands`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(command),

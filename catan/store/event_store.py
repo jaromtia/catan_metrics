@@ -31,7 +31,8 @@ _SCHEMA = """
 CREATE TABLE IF NOT EXISTS games (
     game_id TEXT PRIMARY KEY,
     created_at REAL NOT NULL,
-    mode TEXT NOT NULL DEFAULT 'strict'
+    mode TEXT NOT NULL DEFAULT 'strict',
+    owner TEXT
 );
 CREATE TABLE IF NOT EXISTS events (
     game_id TEXT NOT NULL,
@@ -66,22 +67,25 @@ class EventStore:
         self.conn.commit()
 
     def _migrate(self) -> None:
-        """Add the per-game ``mode`` column to databases created before it."""
+        """Add columns to ``games`` for databases created before they existed."""
         cols = {r["name"] for r in self.conn.execute("PRAGMA table_info(games)")}
         if "mode" not in cols:
             self.conn.execute(
                 "ALTER TABLE games ADD COLUMN mode TEXT NOT NULL DEFAULT 'strict'"
             )
+        if "owner" not in cols:
+            # NULL = ownerless/legacy game, visible to every browser.
+            self.conn.execute("ALTER TABLE games ADD COLUMN owner TEXT")
 
     def close(self) -> None:
         self.conn.close()
 
     # --- writes ------------------------------------------------------------
 
-    def create_game(self, game_id: str, mode: str = DEFAULT_MODE) -> None:
+    def create_game(self, game_id: str, mode: str = DEFAULT_MODE, owner: str | None = None) -> None:
         self.conn.execute(
-            "INSERT INTO games (game_id, created_at, mode) VALUES (?, ?, ?)",
-            (game_id, time.time(), mode),
+            "INSERT INTO games (game_id, created_at, mode, owner) VALUES (?, ?, ?, ?)",
+            (game_id, time.time(), mode, owner),
         )
         self.conn.commit()
 
@@ -133,10 +137,24 @@ class EventStore:
 
     # --- reads -------------------------------------------------------------
 
-    def list_games(self) -> list[str]:
-        rows = self.conn.execute(
-            "SELECT game_id FROM games ORDER BY created_at"
-        ).fetchall()
+    def list_games(self, owner: str | None = None) -> list[str]:
+        """List game ids, oldest first.
+
+        With ``owner`` set, only that owner's games plus ownerless/legacy
+        games (``owner IS NULL``) are returned — each browser's private lobby
+        plus anything pre-dating per-browser ownership. With ``owner=None``
+        (e.g. the CLI, which has no notion of "this browser"), every game is
+        returned, matching the pre-ownership behavior.
+        """
+        if owner is None:
+            rows = self.conn.execute(
+                "SELECT game_id FROM games ORDER BY created_at"
+            ).fetchall()
+        else:
+            rows = self.conn.execute(
+                "SELECT game_id FROM games WHERE owner IS NULL OR owner = ? ORDER BY created_at",
+                (owner,),
+            ).fetchall()
         return [r["game_id"] for r in rows]
 
     def get_mode(self, game_id: str) -> str:

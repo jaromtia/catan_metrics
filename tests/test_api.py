@@ -25,6 +25,36 @@ def test_create_and_list_games():
     assert games[0]["phase"] == "setup"
 
 
+def test_lobby_is_scoped_per_browser_client():
+    c = client()
+    alice = {"X-Catan-Client": "alice-id"}
+    bob = {"X-Catan-Client": "bob-id"}
+
+    legacy_id = new_game(c)  # no client header: an "ownerless"/legacy game
+    alice_resp = c.post("/api/games", json={"players": ["red", "blue"], "board": "standard"}, headers=alice)
+    bob_resp = c.post("/api/games", json={"players": ["red", "blue"], "board": "standard"}, headers=bob)
+    alice_id, bob_id = alice_resp.json()["game_id"], bob_resp.json()["game_id"]
+
+    alice_ids = {g["game_id"] for g in c.get("/api/games", headers=alice).json()}
+    bob_ids = {g["game_id"] for g in c.get("/api/games", headers=bob).json()}
+    everyone_ids = {g["game_id"] for g in c.get("/api/games").json()}
+
+    # Each browser sees its own games plus ownerless/legacy ones, not each other's.
+    assert alice_ids == {alice_id, legacy_id}
+    assert bob_ids == {bob_id, legacy_id}
+    # No client header (CLI / bare API use) keeps the old unfiltered behavior.
+    assert everyone_ids == {legacy_id, alice_id, bob_id}
+
+    # Ownership only scopes the lobby listing — a shared id still works for
+    # anyone who has it, which is what makes "join by code/link" possible.
+    assert c.get(f"/api/games/{alice_id}/state", headers=bob).status_code == 200
+    assert c.post(
+        f"/api/games/{alice_id}/commands",
+        json={"type": "PlaceSetupSettlement", "player": "red", "vertex": 0},
+        headers=bob,
+    ).status_code == 200
+
+
 def test_state_and_events_endpoints():
     c = client()
     gid = new_game(c)

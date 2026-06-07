@@ -20,12 +20,14 @@ class GameService:
     def __init__(self, store: EventStore | None = None) -> None:
         self.store = store or EventStore()
 
-    def create_game(self, command: cmd.CreateGame, mode: str = "strict") -> str:
+    def create_game(
+        self, command: cmd.CreateGame, mode: str = "strict", owner: str | None = None
+    ) -> str:
         result = validate(None, command)
         if not result.ok:
             raise ValueError("; ".join(result.errors))
         game_id = uuid.uuid4().hex
-        self.store.create_game(game_id, mode)
+        self.store.create_game(game_id, mode, owner)
         self.store.append(game_id, result.events)
         return game_id
 
@@ -69,8 +71,8 @@ class GameService:
                 self.store.save_snapshot(game_id, last_seq, new_state)
         return result
 
-    def list_games(self) -> list[str]:
-        return self.store.list_games()
+    def list_games(self, owner: str | None = None) -> list[str]:
+        return self.store.list_games(owner)
 
     def delete_game(self, game_id: str) -> None:
         self.store.delete_game(game_id)

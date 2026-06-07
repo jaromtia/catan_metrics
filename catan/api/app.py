@@ -12,7 +12,7 @@ import math
 import os
 import random
 
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Header, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -151,6 +151,19 @@ def _board_template() -> dict:
     }
 
 
+def _owner(x_catan_client: str | None) -> str | None:
+    """Normalize the per-browser client id header into an owner id.
+
+    Each browser mints and persists its own random id (no login); games it
+    creates are tagged with that id so its lobby only lists its own games (plus
+    ownerless/legacy ones). A blank or missing header means "no notion of a
+    browser session" — e.g. the CLI or a bare API client — so listing/creation
+    fall back to the unfiltered, ownerless behavior that predates this feature.
+    """
+    client = (x_catan_client or "").strip()
+    return client or None
+
+
 def _build_board(board: str, seed: int | None, layout: dict | None) -> Board:
     """Construct a board from a request spec, raising HTTPException on bad input."""
     if board == "random":
@@ -233,21 +246,23 @@ def create_app(service: GameService | None = None) -> FastAPI:
         return _board_template()
 
     @app.post("/api/games")
-    def create_game(req: CreateGameRequest) -> dict:
+    def create_game(req: CreateGameRequest, x_catan_client: str | None = Header(None)) -> dict:
         board = _build_board(req.board, req.seed, req.layout)
         mode = req.mode if req.mode in ("strict", "dev") else "strict"
         try:
             game_id = svc.create_game(
-                cmd.CreateGame(board=board, player_order=tuple(req.players)), mode=mode
+                cmd.CreateGame(board=board, player_order=tuple(req.players)),
+                mode=mode,
+                owner=_owner(x_catan_client),
             )
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
         return {"game_id": game_id, "mode": mode, "state": _state_dict(game_id)}
 
     @app.get("/api/games")
-    def list_games() -> list[dict]:
+    def list_games(x_catan_client: str | None = Header(None)) -> list[dict]:
         out = []
-        for gid in svc.list_games():
+        for gid in svc.list_games(_owner(x_catan_client)):
             st = svc.state(gid)
             out.append(
                 {

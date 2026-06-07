@@ -103,6 +103,18 @@ def test_append_and_reload_events_match():
     assert loaded == events
 
 
+def test_list_games_filters_by_owner():
+    store = EventStore()
+    store.create_game("mine", owner="alice")
+    store.create_game("theirs", owner="bob")
+    store.create_game("legacy")  # no owner: visible to everyone
+
+    assert set(store.list_games()) == {"mine", "theirs", "legacy"}
+    assert set(store.list_games(owner="alice")) == {"mine", "legacy"}
+    assert set(store.list_games(owner="bob")) == {"theirs", "legacy"}
+    assert set(store.list_games(owner="carol")) == {"legacy"}
+
+
 def test_replay_matches_live_state():
     board = standard_board()
     svc = GameService()

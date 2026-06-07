@@ -100,6 +100,16 @@ select {
   margin-left: 8px;
 }
 
+.join-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.join-row input {
+  flex: 1;
+}
+
 .game-row {
   display: flex;
   gap: 8px;
@@ -369,6 +379,13 @@ select {
     grid-row: 2;
     min-height: 0;
     height: fit-content;
+    /* Cap how big the board can render on wide monitors — past this width it
+       just eats the screen and pushes the action panels out of view. Auto
+       margins disable grid stretch (shrinking the box to its content), so
+       width:100% is needed to keep it filling-then-clamping-then-centering. */
+    width: 100%;
+    max-width: 680px;
+    margin-inline: auto;
   }
 
   .board-stage > .board-sheet {
@@ -621,7 +638,15 @@ select {
   }
 
   .board-dock .actions {
-    flex: 0 0 auto;
+    /* Stack the action sections (turn, trades, buy dev card, …) vertically
+       and let the dock take the full toolbar width — otherwise they lay out
+       side by side (the shared `display: flex` above defaults to row) and
+       expanding "Trades & development cards" pushes the bank-trade controls
+       far off to the right, forcing a long horizontal scroll to reach them. */
+    flex: 1 1 100%;
+    flex-direction: column;
+    align-items: stretch;
+    min-width: 0;
   }
 
   .board-dock .palette-row {
@@ -649,12 +674,22 @@ select {
   .board-dock .actions section {
     padding: 0;
     border: none;
+    min-width: 0;
   }
 
+  /* Some rows (turn dice controls, bank/port trade — give amount, resource
+     pickers, arrow, stepper, ratio, button) carry more controls than fit on
+     one line on a phone; wrap instead of forcing horizontal scrolling. */
   .board-dock .actions .action-row {
     margin: 0;
     gap: 4px;
-    flex-wrap: nowrap;
+    row-gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .board-dock .actions .action-row select {
+    flex: 1 1 auto;
+    min-width: 0;
   }
 
   .board-dock .dice-roll {
@@ -712,21 +747,50 @@ select {
     justify-content: center;
   }
 
+  /* Palette chips: icon + spelled-out label; selected chip expands */
   .board-dock .piece {
-    padding: 6px 8px;
-    gap: 0;
-    min-width: 36px;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    padding: 5px 8px;
+    min-width: 44px;
+    min-height: 44px;
     justify-content: center;
+    transition: padding 0.15s ease, gap 0.15s ease;
+  }
+
+  .board-dock .piece-label {
+    font-size: 9px;
+    font-weight: 700;
+    line-height: 1.15;
+    text-align: center;
+    max-width: 58px;
+    transition: font-size 0.15s ease, max-width 0.15s ease;
   }
 
   .board-dock .piece-icon {
     width: 18px;
     height: 18px;
+    flex-shrink: 0;
+    transition: width 0.15s ease, height 0.15s ease;
   }
 
-  /* hide text labels — icons only in the dock */
-  .board-dock .piece {
-    font-size: 0;
+  .board-dock .piece.active {
+    flex-direction: row;
+    gap: 6px;
+    padding: 6px 12px;
+    min-width: auto;
+  }
+
+  .board-dock .piece.active .piece-icon {
+    width: 24px;
+    height: 24px;
+  }
+
+  .board-dock .piece.active .piece-label {
+    font-size: 12px;
+    max-width: none;
+    white-space: nowrap;
   }
 
   .board-dock .rb-banner {
