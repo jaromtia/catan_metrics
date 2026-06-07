@@ -128,6 +128,9 @@ def test_board_template_endpoint():
     # Default ports sit on perimeter edges and follow the base distribution.
     perim_ids = {s["edge"] for s in tpl["perimeter_edges"]}
     assert all(p["edge"] in perim_ids for p in tpl["default_ports"])
+    from catan.domain.constants import STANDARD_PORT_SEQUENCE
+
+    assert [p["type"] for p in tpl["default_ports"]] == STANDARD_PORT_SEQUENCE
 
 
 def test_create_custom_board_game():

@@ -1,11 +1,8 @@
 import { useState } from "react";
 import { playerColor } from "../colors";
 import { ResIcon } from "../icons";
+import { PIPS } from "../pips";
 import type { MetricsDTO } from "../types";
-
-const PIPS: Record<number, number> = {
-  2: 1, 3: 2, 4: 3, 5: 4, 6: 5, 7: 0, 8: 5, 9: 4, 10: 3, 11: 2, 12: 1,
-};
 const RES = ["brick", "lumber", "wool", "grain", "ore"] as const;
 
 function Section({ title, defaultOpen = true, children }: {

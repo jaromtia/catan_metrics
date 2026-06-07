@@ -27,6 +27,7 @@ from .constants import (
     PORT_TRADE_RATIO,
     PORT_TYPE_RESOURCE,
     STANDARD_NUMBER_SEQUENCE,
+    STANDARD_PORT_SEQUENCE,
     TERRAIN_COUNTS,
     Resource,
     PortType,
@@ -105,17 +106,42 @@ def _perimeter_edges(topology: BoardTopology) -> list[int]:
     return [eid for _, eid in perim]
 
 
+def _port_slot_indices(perim_len: int, count: int = 9) -> list[int]:
+    """Indices into ``_perimeter_edges`` for the nine evenly spaced port docks."""
+    return [round(i * perim_len / count) % perim_len for i in range(count)]
+
+
+def _standard_port_slot_order(perim_len: int) -> list[int]:
+    """Perimeter indices for docks clockwise from top-left (base-game frame)."""
+    slots = _port_slot_indices(perim_len)
+    # Even-spread slot order runs atan2 ascending (lower-left first); remap to
+    # clockwise-from-top-left using the fixed base-board dock ring.
+    return [slots[8], slots[7], slots[6], slots[5], slots[4], slots[3], slots[2], slots[1], slots[0]]
+
+
 def _place_ports(topology: BoardTopology, port_types: list[PortType]) -> list[Port]:
     """Spread the 9 ports evenly across the perimeter edges."""
     perim = _perimeter_edges(topology)
-    n = len(perim)
-    count = len(port_types)
+    slots = _port_slot_indices(len(perim))
     ports: list[Port] = []
     for i, ptype in enumerate(port_types):
-        eid = perim[round(i * n / count) % n]
+        eid = perim[slots[i]]
         a, b = topology.edge_vertices[eid]
         ports.append(Port(type=ptype, vertices=frozenset((a, b))))
     return ports
+
+
+def standard_port_edges(topology: BoardTopology) -> list[tuple[PortType, int]]:
+    """``(type, edge-id)`` pairs for the official clockwise port layout."""
+    perim = _perimeter_edges(topology)
+    order = _standard_port_slot_order(len(perim))
+    types = [_parse_port(t) for t in STANDARD_PORT_SEQUENCE]
+    return [(types[i], perim[order[i]]) for i in range(len(types))]
+
+
+def place_standard_ports(topology: BoardTopology) -> list[Port]:
+    """Nine ports on the base-board docks in ``STANDARD_PORT_SEQUENCE`` order."""
+    return _ports_on_edges(topology, standard_port_edges(topology))
 
 
 def _ports_on_edges(
@@ -213,7 +239,7 @@ def standard_board() -> Board:
     producing = [t for t in _terrain_pool() if t is not Terrain.DESERT]
     terrains = producing[: len(spiral) - 1] + [Terrain.DESERT]
 
-    ports = _place_ports(topology, _port_type_pool())
+    ports = place_standard_ports(topology)
     return _assign(topology, terrains, STANDARD_NUMBER_SEQUENCE, ports)
 
 
@@ -231,15 +257,18 @@ def _has_adjacent_red(board_topology: BoardTopology, numbers: dict[Coord, int]) 
 
 
 def random_board(rng: random.Random | None = None) -> Board:
-    """Shuffled, rules-legal board (6 and 8 never adjacent)."""
+    """Shuffled, rules-legal board (6 and 8 never adjacent).
+
+    Only the terrain tiles and number tokens are randomized; ports stay on
+    their official standard docks (matching the physical pieces, which are
+    glued to the frame and not reshuffled for casual random games).
+    """
     rng = rng or random.Random()
     topology = build_topology()
 
     terrains = _terrain_pool()
     numbers_pool = _number_pool()
-    port_types = _port_type_pool()
-    rng.shuffle(port_types)
-    ports = _place_ports(topology, port_types)
+    ports = place_standard_ports(topology)
 
     for _ in range(1000):
         rng.shuffle(terrains)

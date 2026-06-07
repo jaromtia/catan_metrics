@@ -17,6 +17,7 @@ from catan.domain.constants import (
     NUMBER_TOKEN_COUNTS,
     PORT_COUNTS,
     STANDARD_NUMBER_SEQUENCE,
+    STANDARD_PORT_SEQUENCE,
     TERRAIN_COUNTS,
     Terrain,
 )
@@ -53,6 +54,14 @@ def test_standard_board_is_reproducible():
 def test_random_boards_are_valid():
     for seed in range(25):
         _assert_valid(random_board(random.Random(seed)))
+
+
+def test_random_board_keeps_standard_ports():
+    """Random boards shuffle terrain/numbers only -- ports stay on their docks."""
+    for seed in range(10):
+        board = random_board(random.Random(seed))
+        assert [p.type.value for p in board.ports] == STANDARD_PORT_SEQUENCE
+        assert board.ports == standard_board().ports
 
 
 def test_random_board_has_no_adjacent_red_numbers():
@@ -102,12 +111,15 @@ def test_custom_board_rejects_wrong_number_multiset():
 
 
 def _standard_port_placements():
-    from catan.domain.board import _perimeter_edges, _port_type_pool
+    from catan.domain.board import standard_port_edges
 
     topo = build_topology()
-    perim = _perimeter_edges(topo)
-    pool = _port_type_pool()
-    return topo, [(pool[i], perim[i]) for i in range(len(pool))]
+    return topo, standard_port_edges(topo)
+
+
+def test_standard_board_port_sequence():
+    board = standard_board()
+    assert [p.type.value for p in board.ports] == STANDARD_PORT_SEQUENCE
 
 
 def test_custom_board_accepts_explicit_port_edges():

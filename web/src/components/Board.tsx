@@ -3,6 +3,7 @@ import { playerColor, PORT_FILL, TERRAIN_FILL } from "../colors";
 import { TERRAIN_ICON } from "../icons";
 import type { GameStateDTO, LayoutDTO } from "../types";
 import type { Piece } from "./Palette";
+import { NumberToken } from "./NumberToken";
 
 const S = 60; // pixels per board unit
 
@@ -18,7 +19,7 @@ function boardBounds(layout: LayoutDTO) {
       pts.push([p[0] * S, p[1] * S]);
     }
     // resource icon sits above the number token
-    pts.push([cx, cy - 38], [cx, cy + 20]);
+    pts.push([cx, cy - 38], [cx, cy + 24]);
   }
 
   for (const p of layout.ports) {
@@ -218,7 +219,6 @@ export function Board({ layout, state, showVertexIds, showEdgeIds, showResIcons,
             const pts = hx.vertices.map((v) => vpos(v).join(",")).join(" ");
             const isRobber = robberKey === hx.coord.join(",");
             const [cx, cy] = [hx.center[0] * S, hx.center[1] * S];
-            const red = hx.number === 6 || hx.number === 8;
             return (
               <g key={hx.coord.join(",")}>
                 <polygon points={pts} fill={TERRAIN_FILL[hx.terrain]} stroke="#1b2330" strokeWidth={2} />
@@ -228,12 +228,7 @@ export function Board({ layout, state, showVertexIds, showEdgeIds, showResIcons,
                   </text>
                 )}
                 {hx.number != null && (
-                  <>
-                    <circle cx={cx} cy={cy} r={14} fill="#f5efe0" stroke="#1b2330" />
-                    <text x={cx} y={cy + 4} textAnchor="middle" className={red ? "num red" : "num"}>
-                      {hx.number}
-                    </text>
-                  </>
+                  <NumberToken cx={cx} cy={cy} number={hx.number} />
                 )}
                 {isRobber && <circle cx={cx} cy={cy} r={10} fill="#111" opacity={0.85} />}
               </g>

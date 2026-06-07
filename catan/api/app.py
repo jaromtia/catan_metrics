@@ -90,7 +90,7 @@ def _board_template() -> dict:
     directly. Also returns the exact base-game tile and number-token counts the
     designer enforces.
     """
-    from ..domain.board import _perimeter_edges, _port_type_pool, _spiral_order
+    from ..domain.board import _perimeter_edges, _spiral_order, standard_port_edges
     from ..domain.constants import (
         NUMBER_TOKEN_COUNTS,
         PORT_COUNTS,
@@ -130,13 +130,10 @@ def _board_template() -> dict:
             {"edge": eid, "vertices": [a, b], "pos": _offset_outward(mx, my)}
         )
 
-    # The even spread the engine uses by default; the designer starts here and
-    # lets you drag ports to wherever they sit on your physical board.
-    pool = _port_type_pool()
-    n, count = len(perim), len(pool)
+    # Official clockwise port layout (base-game sea frame); designer "Standard"
+    # button applies this so you can tweak from a known-good starting point.
     default_ports = [
-        {"type": pool[i].value, "edge": perim[round(i * n / count) % n]}
-        for i in range(count)
+        {"type": ptype.value, "edge": eid} for ptype, eid in standard_port_edges(topo)
     ]
 
     return {

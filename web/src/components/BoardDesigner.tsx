@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { api, ApiError } from "../api";
 import { PORT_FILL, saveGameColors, setColorOverrides, TERRAIN_FILL } from "../colors";
 import type { BoardTemplateDTO } from "../types";
+import { NumberToken } from "./NumberToken";
 
 const S = 60; // pixels per board unit (matches the in-game Board)
 const PAD = 44;
@@ -59,7 +60,8 @@ export function BoardDesigner({ players, colors, mode, onCancel, onCreated }: Pr
       setTpl(t);
       setTerrains(Array(t.hexes.length).fill(null));
       setNumbers(Array(t.hexes.length).fill(null));
-      setPortByEdge(Object.fromEntries(t.default_ports.map((p) => [p.edge, p.type])));
+      // Start empty — user places ports on perimeter docks (matches physical board).
+      setPortByEdge({});
     }).catch((e) => setError(String(e)));
   }, []);
 
@@ -116,14 +118,43 @@ export function BoardDesigner({ players, colors, mode, onCancel, onCreated }: Pr
     if (!active || active.kind !== "port") return;
     setPortByEdge((prev) => {
       const next = { ...prev };
-      if (next[edge] === active.value) {
-        delete next[edge]; // toggle off
-      } else {
-        if (portLeft(active.value) <= 0) return prev; // distribution limit reached
-        next[edge] = active.value;
+      const current = next[edge];
+      const placing = active.value;
+      const max = tpl.port_counts[placing] ?? 0;
+
+      if (current === placing) {
+        delete next[edge];
+        return next;
       }
+
+      const usedElsewhere = Object.entries(next).filter(
+        ([e, t]) => t === placing && Number(e) !== edge,
+      ).length;
+
+      if (usedElsewhere >= max) {
+        if (current) {
+          // Swap port type on this dock — total per-type counts stay the same.
+          next[edge] = placing;
+          return next;
+        }
+        // Quota full on empty dock: relocate one port of this type here.
+        const src = Object.entries(next).find(([e, t]) => t === placing && Number(e) !== edge);
+        if (!src) return prev;
+        delete next[Number(src[0])];
+      }
+
+      next[edge] = placing;
       return next;
     });
+  };
+
+  const onPortSlotClick = (edge: number) => {
+    if (tool?.kind === "port") {
+      applyPort(edge, tool);
+      return;
+    }
+    const placed = portByEdge[edge];
+    if (placed) setTool({ kind: "port", value: placed });
   };
 
   const apply = (idx: number, active: Tool | null) => {
@@ -169,8 +200,10 @@ export function BoardDesigner({ players, colors, mode, onCancel, onCreated }: Pr
     setNumbers(Array(tpl.hexes.length).fill(null));
   };
 
-  const resetPorts = () =>
+  const applyStandardPorts = () =>
     setPortByEdge(Object.fromEntries(tpl.default_ports.map((p) => [p.edge, p.type])));
+
+  const clearPorts = () => setPortByEdge({});
 
   const placedTerrains = terrains.filter(Boolean).length;
   const missingNumbers = terrains.reduce(
@@ -236,7 +269,6 @@ export function BoardDesigner({ players, colors, mode, onCancel, onCreated }: Pr
             const t = terrains[i];
             const [cx, cy] = [hx.center[0] * S, hx.center[1] * S];
             const num = numbers[i];
-            const red = num === 6 || num === 8;
             return (
               <g
                 key={i}
@@ -258,12 +290,7 @@ export function BoardDesigner({ players, colors, mode, onCancel, onCreated }: Pr
                   <text x={cx} y={cy + 5} textAnchor="middle" className="hex-empty">+</text>
                 )}
                 {num != null && (
-                  <>
-                    <circle cx={cx} cy={cy} r={14} fill="#f5efe0" stroke="#1b2330" />
-                    <text x={cx} y={cy + 4} textAnchor="middle" className={red ? "num red" : "num"}>
-                      {num}
-                    </text>
-                  </>
+                  <NumberToken cx={cx} cy={cy} number={num} />
                 )}
               </g>
             );
@@ -274,17 +301,25 @@ export function BoardDesigner({ players, colors, mode, onCancel, onCreated }: Pr
             const t = portByEdge[slot.edge];
             const [px, py] = [slot.pos[0] * S, slot.pos[1] * S];
             const generic = t === "generic";
+            const portToolActive = tool?.kind === "port";
+            const slotClass = [
+              "port-slot",
+              portToolActive && !t ? "port-target" : "",
+              portToolActive && t ? "port-replaceable" : "",
+            ].filter(Boolean).join(" ");
             return (
               <g
                 key={slot.edge}
-                className="port-slot"
-                onClick={() => applyPort(slot.edge, tool)}
+                className={slotClass}
+                onClick={() => onPortSlotClick(slot.edge)}
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={(e) => {
                   e.preventDefault();
                   applyPort(slot.edge, drag);
                 }}
               >
+                {/* Large transparent hit target — SVG <g> only receives clicks on children */}
+                <circle cx={px} cy={py} r={20} className="port-hit" />
                 {t ? (
                   <>
                     {slot.vertices.map((v) => {
@@ -378,14 +413,24 @@ export function BoardDesigner({ players, colors, mode, onCancel, onCreated }: Pr
                 );
               })}
             </div>
-            <button className="link" onClick={resetPorts}>Reset ports to standard</button>
+            <div className="port-actions">
+              <button className="link" onClick={applyStandardPorts}>Standard ports</button>
+              <button className="link" onClick={clearPorts}>Clear all ports</button>
+            </div>
+            {tool?.kind === "port" && (
+              <p className="small port-hint">
+                Click a perimeter dock to place {PORT_TOOL_LABEL[tool.value]}.
+                Click again to remove; click another dock to move or swap type.
+              </p>
+            )}
           </div>
 
           <div className="panel">
             <p className="muted small">
               Drag a tile, number, or port onto the board — or click one to select,
               then click a target. Click the same target again to clear it. Numbers go
-              on producing hexes only; ports drop onto the perimeter docks.
+              on producing hexes only; ports drop onto the blue perimeter docks.
+              Click an existing port to pick up its type.
             </p>
             <p className="small">
               Tiles {placedTerrains}/{tpl.hexes.length} · numbers left {missingNumbers} ·

@@ -591,54 +591,46 @@ function GameView({ gameId, onExit }: { gameId: string; onExit: () => void }) {
               onRobberHex={(coord) => setRobberTarget(coord)}
             />
           </div>
-          <div className="board-dock">
-            {placeMsg && <div className={placeMsg.ok ? "msg ok place dock-toast" : "msg err place dock-toast"}>{placeMsg.text}</div>}
-            {live && rbEdges && (
-              <div className="panel rb-banner">
-                <span>Road Building · {rbEdges.length}/2 roads picked</span>
-                {rbEdges.length >= 1 && (
-                  <button onClick={() => submitRoadBuilding(rbEdges)}>Finish with {rbEdges.length}</button>
-                )}
-                <button className="link" onClick={() => { setRbEdges(null); setTool(null); }}>Cancel</button>
-              </div>
-            )}
-            {showPalette && (
-              <Palette tool={tool} setTool={setTool} setDragKind={setDragKind} disabled={!live} allowed={allowedPieces} canBuild={buildAffordability} />
-            )}
-            {live && robberTarget ? (
-              <RobberPanel
-                state={state}
-                layout={layout}
-                target={robberTarget}
-                mover={mover}
-                mode={robberMode}
-                onConfirm={confirmRobber}
-                onCancel={() => setRobberTarget(null)}
-              />
-            ) : live && (state.robber_pending || tool === "robber") ? (
-              <div className="panel robber-hint">
-                <h3>{state.robber_pending ? "Move robber (rolled 7)" : "Play knight"}</h3>
-                <p>Tap a hex on the board to place the robber.</p>
-              </div>
-            ) : guided ? (
-              <>
-                {step.key === "roll" && <ActionsPanel state={state} apply={applyCommand} disabled={!live} variant="roll" player={current} enforce />}
-                {step.key === "build" && <ActionsPanel state={state} apply={applyCommand} disabled={!live} variant="actions" player={current} enforce onRoadBuilding={startRoadBuilding} />}
-              </>
-            ) : (
-              <ActionsPanel state={state} apply={applyCommand} disabled={!live} variant="all" player={effActor} onRoadBuilding={startRoadBuilding} />
-            )}
+          <div className="right-rail">
+            <div className="board-dock">
+              {placeMsg && <div className={placeMsg.ok ? "msg ok place dock-toast" : "msg err place dock-toast"}>{placeMsg.text}</div>}
+              {live && rbEdges && (
+                <div className="panel rb-banner">
+                  <span>Road Building · {rbEdges.length}/2 roads picked</span>
+                  {rbEdges.length >= 1 && (
+                    <button onClick={() => submitRoadBuilding(rbEdges)}>Finish with {rbEdges.length}</button>
+                  )}
+                  <button className="link" onClick={() => { setRbEdges(null); setTool(null); }}>Cancel</button>
+                </div>
+              )}
+              {showPalette && (
+                <Palette tool={tool} setTool={setTool} setDragKind={setDragKind} disabled={!live} allowed={allowedPieces} canBuild={buildAffordability} />
+              )}
+              {live && robberTarget ? (
+                <RobberPanel
+                  state={state}
+                  layout={layout}
+                  target={robberTarget}
+                  mover={mover}
+                  mode={robberMode}
+                  onConfirm={confirmRobber}
+                  onCancel={() => setRobberTarget(null)}
+                />
+              ) : live && (state.robber_pending || tool === "robber") ? (
+                <div className="panel robber-hint">
+                  <h3>{state.robber_pending ? "Move robber (rolled 7)" : "Play knight"}</h3>
+                  <p>Tap a hex on the board to place the robber.</p>
+                </div>
+              ) : guided ? (
+                <>
+                  {step.key === "roll" && <ActionsPanel state={state} apply={applyCommand} disabled={!live} variant="roll" player={current} enforce />}
+                  {step.key === "build" && <ActionsPanel state={state} apply={applyCommand} disabled={!live} variant="actions" player={current} enforce onRoadBuilding={startRoadBuilding} />}
+                </>
+              ) : (
+                <ActionsPanel state={state} apply={applyCommand} disabled={!live} variant="all" player={effActor} onRoadBuilding={startRoadBuilding} />
+              )}
+            </div>
           </div>
-        </div>
-        <div className="side-panels">
-          <Players state={state} />
-          {!guided && (
-            <>
-              <AdminPanel state={state} apply={applyCommand} />
-              <CommandBar disabled={!live} apply={applyText} />
-            </>
-          )}
-          <EventLog events={events} />
         </div>
         <div className="panel scrubber">
           <input
@@ -650,6 +642,19 @@ function GameView({ gameId, onExit }: { gameId: string; onExit: () => void }) {
           />
           <span>{live ? `live (seq ${maxSeq})` : `history @ seq ${viewSeq}`}</span>
           {!live && <button className="link" onClick={() => setViewSeq(null)}>jump to live</button>}
+        </div>
+      </div>
+
+      <div className="game-meta">
+        <div className="side-panels">
+          <Players state={state} />
+          {!guided && (
+            <>
+              <AdminPanel state={state} apply={applyCommand} />
+              <CommandBar disabled={!live} apply={applyText} />
+            </>
+          )}
+          <EventLog events={events} />
         </div>
       </div>
 

@@ -12,6 +12,10 @@ function clampDie(v: number) {
   return ((v - 1 + 6) % 6) + 1;
 }
 
+function randDie() {
+  return Math.floor(Math.random() * 6) + 1;
+}
+
 function DiePicker({
   value,
   onChange,
@@ -147,6 +151,14 @@ export function ActionsPanel({
     }
   }
 
+  async function randomRoll() {
+    const r1 = randDie();
+    const r2 = randDie();
+    setD1(r1);
+    setD2(r2);
+    await run({ type: "RollDice", player: me, die1: r1, die2: r2 }, `roll ${r1}+${r2}`);
+  }
+
   // turn
   const [d1, setD1] = useState(4);
   const [d2, setD2] = useState(3);
@@ -219,20 +231,33 @@ export function ActionsPanel({
                 <span className="dice-op">+</span>
                 <DiePicker value={d2} onChange={setD2} disabled={dis} />
                 <span className="dice-sum">={d1 + d2}</span>
-                <button
-                  className="dice-roll-btn"
-                  disabled={dis}
-                  onClick={() => run({ type: "RollDice", player: me, die1: d1, die2: d2 }, `roll ${d1}+${d2}`)}
-                >
-                  Roll
-                </button>
+                <div className="dice-roll-actions">
+                  <button
+                    type="button"
+                    className="dice-random-btn"
+                    disabled={dis}
+                    title="Roll with random dice"
+                    onClick={() => void randomRoll()}
+                  >
+                    Random
+                  </button>
+                  <button
+                    type="button"
+                    className="dice-roll-btn"
+                    disabled={dis}
+                    onClick={() => run({ type: "RollDice", player: me, die1: d1, die2: d2 }, `roll ${d1}+${d2}`)}
+                  >
+                    Roll
+                  </button>
+                </div>
               </div>
             ) : (
               <>
                 <span>🎲</span>
                 <DiePicker value={d1} onChange={setD1} disabled={dis} />
                 <DiePicker value={d2} onChange={setD2} disabled={dis} />
-                <button disabled={dis} onClick={() => run({ type: "RollDice", player: me, die1: d1, die2: d2 }, `roll ${d1}+${d2}`)}>Roll</button>
+                <button type="button" disabled={dis} title="Roll with random dice" onClick={() => void randomRoll()}>Random</button>
+                <button type="button" disabled={dis} onClick={() => run({ type: "RollDice", player: me, die1: d1, die2: d2 }, `roll ${d1}+${d2}`)}>Roll</button>
               </>
             )
           )}
@@ -248,7 +273,9 @@ export function ActionsPanel({
         </button>
       )}
 
-      {showTrades && showMore && <section>
+      {showTrades && showMore && (
+        <div className="actions-expandable">
+      <section>
         <div className="row-label">Bank / port trade</div>
         <div className="action-row bank-trade">
           give
@@ -280,9 +307,9 @@ export function ActionsPanel({
             {bGive === bRecv ? "pick two different resources" : `${me} has ${myRes[bGive] ?? 0} ${bGive}, needs ${bGiveAmt}`}
           </div>
         )}
-      </section>}
+      </section>
 
-      {showTrades && showMore && <section>
+      <section>
         <div className="row-label">Record a trade</div>
         <div className="action-row">
           with
@@ -349,9 +376,9 @@ export function ActionsPanel({
                 : `${partner} doesn't have enough ${partnerLacks} to give`}
           </div>
         )}
-        </section>}
+      </section>
 
-      {showTrades && showMore && <section>
+      <section>
         <div className="row-label">
           Buy development card <span className="muted">(<ResIcon r="ore" /><ResIcon r="wool" /><ResIcon r="grain" />)</span>
         </div>
@@ -401,7 +428,9 @@ export function ActionsPanel({
           </>
         )}
         <p className="muted small">Knights are played via the Robber piece.</p>
-      </section>}
+      </section>
+        </div>
+      )}
 
       {msg && <div className={msg.ok ? "msg ok" : "msg err"}>{msg.text}</div>}
     </div>

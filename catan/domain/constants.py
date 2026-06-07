@@ -160,6 +160,19 @@ PORT_COUNTS: dict[PortType, int] = {
     PortType.ORE: 1,
 }
 
+# Official port-type order clockwise from the top-left dock on the base board.
+STANDARD_PORT_SEQUENCE: list[str] = [
+    "generic",
+    "wool",
+    "generic",
+    "generic",
+    "brick",
+    "lumber",
+    "generic",
+    "grain",
+    "ore",
+]
+
 # Expected board topology (hexagon of radius 2).
 HEX_COUNT = 19
 VERTEX_COUNT = 54
